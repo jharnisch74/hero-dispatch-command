@@ -121,7 +121,6 @@ func update_mission(delta: float) -> bool:
 	time_remaining -= delta
 	
 	if time_remaining <= 0:
-		complete_mission()
 		return true
 	
 	return false
