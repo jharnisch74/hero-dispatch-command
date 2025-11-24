@@ -83,8 +83,8 @@ func _draw_city_background() -> void:
 			child.queue_free()
 	
 	# Get actual map size
-	var map_width = size.x if size.x > 0 else MAP_WIDTH
-	var map_height = size.y if size.y > 0 else MAP_HEIGHT
+	var map_width = map_canvas.size.x if size.x > 0 else MAP_WIDTH
+	var map_height = map_canvas.size.y if size.y > 0 else MAP_HEIGHT
 	
 	print("Drawing zones - Map size: ", map_width, "x", map_height)
 	
@@ -139,7 +139,7 @@ func _draw_city_background() -> void:
 		var label = Label.new()
 		label.name = "Label_" + zone_name
 		label.text = zone_name.to_upper()
-		label.position = Vector2(zone_x + 15, zone_y + 15)
+		label.position = Vector2(zone_x + 15, zone_y - 30)
 		label.z_index = 2
 		label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		label.add_theme_font_size_override("font_size", 18)

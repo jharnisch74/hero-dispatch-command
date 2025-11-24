@@ -223,7 +223,13 @@ func _deserialize_missions(missions_data: Array) -> Array[Mission]:
 		mission.time_remaining = mission_dict.get("time_remaining", 0.0)
 		mission.is_active = mission_dict.get("is_active", false)
 		mission.is_completed = mission_dict.get("is_completed", false)
-		mission.assigned_hero_ids = mission_dict.get("assigned_hero_ids", [])
+		
+		# Convert assigned_hero_ids to typed array
+		var hero_ids: Array[String] = []
+		for id in mission_dict.get("assigned_hero_ids", []):
+			hero_ids.append(id)
+		mission.assigned_hero_ids = hero_ids
+		
 		mission.success_chance = mission_dict.get("success_chance", 0.0)
 		mission.damage_risk = mission_dict.get("damage_risk", 0.1)
 		

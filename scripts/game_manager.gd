@@ -67,11 +67,16 @@ func _initialize_starting_heroes() -> void:
 	]
 	
 	for hero_data in starting_heroes:
+		# Create properly typed array
+		var specs_array: Array[Hero.Specialty] = []
+		for spec in hero_data.specs:
+			specs_array.append(spec)
+		
 		var hero = Hero.new(
 			"hero_" + str(heroes.size()),
 			hero_data.name,
 			hero_data.emoji,
-			hero_data.specs
+			specs_array  # Pass the typed array
 		)
 		heroes.append(hero)
 
@@ -148,7 +153,12 @@ func _generate_new_mission() -> void:
 		difficulty
 	)
 	
-	mission.preferred_specialties = template.specs
+	# Convert to typed array before assigning
+	var specs_array: Array[Hero.Specialty] = []
+	for spec in template.specs:
+		specs_array.append(spec)
+	mission.preferred_specialties = specs_array
+	
 	mission.max_heroes = 1 if difficulty == Mission.Difficulty.EASY else (3 if difficulty == Mission.Difficulty.EXTREME else 2)
 	
 	available_missions.append(mission)
