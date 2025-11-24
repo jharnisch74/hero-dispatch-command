@@ -44,7 +44,7 @@ func update_display() -> void:
 	intelligence_label.text = "🧠 INT: %d" % hero_data.get_total_intelligence()
 	
 	# Specialties
-	specialty_label.text = JSON.stringify(hero_data.get_specialties())
+	specialty_label.text = _get_specialty_text(hero_data.specialties)
 	 
 	# Health and stamina bars
 	health_bar.max_value = hero_data.max_health
@@ -91,3 +91,22 @@ func _on_select_pressed() -> void:
 func deselect() -> void:
 	selected_for_mission = false
 	update_display()
+
+# Converts hero specialties to readable text
+func _get_specialty_text(specialties: Array) -> String:
+	var names: Array = []
+	for spec in specialties:
+		match spec:
+			Hero.Specialty.COMBAT:
+				names.append("Combat")
+			Hero.Specialty.SPEED:
+				names.append("Speed")
+			Hero.Specialty.TECH:
+				names.append("Tech")
+			Hero.Specialty.RESCUE:
+				names.append("Rescue")
+			Hero.Specialty.INVESTIGATION:
+				names.append("Investigation")
+			_:
+				names.append("Unknown")
+	return ", ".join(names)
