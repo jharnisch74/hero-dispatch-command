@@ -1,5 +1,4 @@
 # res://scripts/mission_map.gd
-# FINAL — No errors, no warnings, icons in correct zones
 extends Control
 
 const MISSION_ICON_SIZE: int = 50
@@ -36,15 +35,25 @@ var city_zones: Dictionary = {
 }
 
 func _ready() -> void:
+	print("MissionMap _ready() called")
 	set_anchors_preset(PRESET_FULL_RECT)
 	size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	size_flags_vertical   = Control.SIZE_EXPAND_FILL
 	_create_map_ui()
+	
+	# Wait for layout to be ready
+	await get_tree().process_frame
+	await get_tree().process_frame
+	if map_canvas:
+		print("MissionMap layout ready, size: %s" % map_canvas.size)
+		_refresh_all()
 
 func setup(gm: Node) -> void:
+	print("MissionMap setup() called")
 	game_manager = gm
 
 func _create_map_ui() -> void:
+	print("MissionMap _create_map_ui() called")
 	map_canvas = Control.new()
 	map_canvas.name = "MapCanvas"
 	map_canvas.set_anchors_preset(PRESET_FULL_RECT)
@@ -57,15 +66,27 @@ func _create_map_ui() -> void:
 	map_canvas.add_child(bg)
 	
 	_create_detail_panel()
-	call_deferred("_refresh_all")
+	# Don't call _refresh_all here, wait for _ready to finish
 
 func refresh_missions() -> void:
+	print("refresh_missions() called")
 	if not is_inside_tree() or not map_canvas:
+		print("  Not ready yet, skipping")
 		return
+	
+	# Make sure we have a valid size
+	if map_canvas.size.x <= 0 or map_canvas.size.y <= 0:
+		print("  Map canvas size invalid: %s, waiting..." % map_canvas.size)
+		await get_tree().process_frame
+		await get_tree().process_frame
+	
+	print("  Calling _refresh_all")
 	call_deferred("_refresh_all")
 
 func _refresh_all() -> void:
 	await get_tree().process_frame
+	
+	print("MissionMap _refresh_all() called")
 	
 	# Remove old zones
 	for child in map_canvas.get_children():
@@ -80,6 +101,8 @@ func _refresh_all() -> void:
 	
 	var w: float = map_canvas.size.x
 	var h: float = map_canvas.size.y
+	
+	print("  Map canvas size: %s" % map_canvas.size)
 	
 	# Draw zones
 	for zone_name in city_zones:
@@ -116,7 +139,7 @@ func _refresh_all() -> void:
 		var label := Label.new()
 		label.name = "Label_" + zone_name
 		label.text = zone_name.to_upper()
-		label.position = Vector2(zx + 20, zy +20)
+		label.position = Vector2(zx + 20, zy + 20)
 		label.add_theme_font_size_override("font_size", 18)
 		label.add_theme_color_override("font_color", Color(1, 1, 1, 0.95))
 		label.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -124,10 +147,16 @@ func _refresh_all() -> void:
 	
 	# Spawn mission markers
 	if game_manager:
+		var total_missions = game_manager.active_missions.size() + game_manager.available_missions.size()
+		print("  Creating markers for %d missions" % total_missions)
 		for mission in game_manager.active_missions + game_manager.available_missions:
 			_create_mission_marker(mission, mission.is_active)
+	else:
+		print("  ERROR: game_manager is NULL!")
 
 func _create_mission_marker(mission: Variant, active: bool) -> void:
+	print("    Creating marker for: %s" % mission.mission_name)
+	
 	var marker := PanelContainer.new()
 	marker.custom_minimum_size = Vector2(MISSION_ICON_SIZE, MISSION_ICON_SIZE)
 	var pos := _get_mission_position(mission)
@@ -162,16 +191,27 @@ func _create_mission_marker(mission: Variant, active: bool) -> void:
 		tween.tween_property(marker, "scale", Vector2(1.15, 1.15), 0.6)
 		tween.tween_property(marker, "scale", Vector2(1.0, 1.0), 0.6)
 	
+	# CRITICAL: Connect the gui_input signal with proper logging
 	marker.gui_input.connect(func(event):
+		print("      Marker gui_input received: %s" % event)
 		if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
+			print("      → LEFT CLICK DETECTED on mission: %s" % mission.mission_name)
 			_on_marker_clicked(mission)
 	)
-	marker.mouse_entered.connect(func(): marker.modulate = Color(1.3, 1.3, 1.3))
-	marker.mouse_exited.connect(func(): marker.modulate = Color.WHITE)
+	
+	marker.mouse_entered.connect(func(): 
+		print("      Mouse entered marker: %s" % mission.mission_name)
+		marker.modulate = Color(1.3, 1.3, 1.3)
+	)
+	marker.mouse_exited.connect(func(): 
+		marker.modulate = Color.WHITE
+	)
 	
 	map_canvas.add_child(marker)
-	marker.z_index = 0
+	marker.z_index = 10  # Make sure markers are on top
 	mission_markers[mission.mission_id] = marker
+	
+	print("      Marker created at position: %s" % marker.position)
 
 func _get_mission_position(mission: Variant) -> Vector2:
 	if used_positions.has(mission.mission_id):
@@ -302,9 +342,19 @@ func _create_detail_panel() -> void:
 	vbox.add_child(detail_start_button)
 	
 	add_child(mission_detail_panel)
+	mission_detail_panel.z_index = 100  # Make sure detail panel is on top
 
 func _on_marker_clicked(mission: Variant) -> void:
+	print("\n!!! _on_marker_clicked called !!!")
+	print("  Mission: %s" % mission.mission_name)
+	print("  Emitting mission_clicked signal...")
+	
 	selected_mission = mission
+	mission_clicked.emit(mission)
+	
+	print("  Signal emitted!")
+	print("!!! End _on_marker_clicked !!!\n")
+	
 	var marker = mission_markers[mission.mission_id]
 	var center = marker.position + Vector2(MISSION_ICON_SIZE / 2, MISSION_ICON_SIZE / 2)
 	
@@ -348,6 +398,11 @@ func _update_detail_panel() -> void:
 		detail_start_button.disabled = not selected_mission.can_start()
 		detail_start_button.text = "START MISSION" if selected_mission.can_start() else "ASSIGN HEROES FIRST"
 
+func refresh_detail_panel() -> void:
+	"""Public function to refresh the detail panel from outside"""
+	if mission_detail_panel and mission_detail_panel.visible:
+		_update_detail_panel()
+
 func _update_timer_display() -> void:
 	if not selected_mission or not selected_mission.is_active: return
 	var mins: int = int(selected_mission.time_remaining) / 60
@@ -365,7 +420,9 @@ func _on_detail_close_pressed() -> void:
 	selected_mission = null
 
 func _on_detail_start_pressed() -> void:
+	print("Detail start button pressed")
 	if selected_mission:
+		print("  Emitting mission_started signal for: %s" % selected_mission.mission_name)
 		mission_started.emit(selected_mission)
 
 func close_detail_panel() -> void:

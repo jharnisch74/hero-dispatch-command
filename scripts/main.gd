@@ -1,11 +1,9 @@
-# res://scenes/main.gd
-# UPDATED VERSION WITH MISSION MAP
-# Replace your existing main.gd with this
-
+# res://scripts/main.gd
 extends Control
 
 # UI Node References
 @onready var hero_list: VBoxContainer = $MainMargin/MainLayout/ContentSplit/HeroPanel/VBoxContainer/HeroScroll/HeroList
+@onready var hero_panel_title: Label = $MainMargin/MainLayout/ContentSplit/HeroPanel/VBoxContainer/HeroPanelTitle
 @onready var mission_container: Control = $MainMargin/MainLayout/ContentSplit/MissionPanel/VBoxContainer/MissionMapContainer
 @onready var money_label: Label = $MainMargin/MainLayout/HeaderPanel/HBoxContainer/ResourceDisplay/MoneyLabel
 @onready var fame_label: Label = $MainMargin/MainLayout/HeaderPanel/HBoxContainer/ResourceDisplay/FameLabel
@@ -37,6 +35,10 @@ func _ready() -> void:
 	_initialize_mission_map()
 	_setup_upgrade_panel()
 	_setup_ui_connections()
+	
+	# Wait for UI to be laid out properly
+	await get_tree().process_frame
+	await get_tree().process_frame
 	
 	# Try to load save, if it fails, create new game
 	if not save_manager.load_game():
@@ -85,8 +87,13 @@ func _initialize_mission_map() -> void:
 	mission_container.add_child(mission_map)
 	
 	mission_map.setup(game_manager)
+	
+	print("Connecting mission map signals...")
 	mission_map.mission_clicked.connect(_on_map_mission_clicked)
 	mission_map.mission_started.connect(_on_mission_start_requested)
+	print("Mission map signals connected!")
+	print("  mission_clicked signal exists: %s" % mission_map.has_signal("mission_clicked"))
+	print("  mission_started signal exists: %s" % mission_map.has_signal("mission_started"))
 
 func _setup_upgrade_panel() -> void:
 	upgrade_panel = upgrade_panel_scene.instantiate()
@@ -98,56 +105,132 @@ func _setup_ui_connections() -> void:
 func _initial_ui_update() -> void:
 	money_label.text = "💰 Money: $%d" % game_manager.money
 	fame_label.text = "⭐ Fame: %d" % game_manager.fame
+	_update_hero_panel_title()
 	_refresh_hero_list()
 	mission_map.refresh_missions()
 
 func _process(_delta: float) -> void:
-	# Only update detail panel if it exists and is visible
+	# Update timer display in mission detail panel
 	if mission_map and mission_map.mission_detail_panel and mission_map.mission_detail_panel.visible:
 		if mission_map.selected_mission and mission_map.selected_mission.is_active:
 			mission_map._update_timer_display()
 
+func _update_hero_panel_title() -> void:
+	if selected_mission:
+		hero_panel_title.text = "SELECT HEROES FOR:\n%s %s" % [selected_mission.mission_emoji, selected_mission.mission_name]
+		hero_panel_title.add_theme_color_override("font_color", Color("#ffcc00"))
+	else:
+		hero_panel_title.text = "YOUR HEROES"
+		hero_panel_title.add_theme_color_override("font_color", Color("#00d9ff"))
+
 func _refresh_hero_list(for_mission: Mission = null) -> void:
+	print("\n*** _refresh_hero_list called ***")
+	print("  for_mission parameter: %s" % (for_mission.mission_name if for_mission else "NULL"))
+	print("  selected_mission: %s" % (selected_mission.mission_name if selected_mission else "NULL"))
+	
 	# Clear existing cards
 	for child in hero_list.get_children():
 		child.queue_free()
 	
+	var mission_to_use = for_mission if for_mission else selected_mission
+	print("  mission_to_use: %s" % (mission_to_use.mission_name if mission_to_use else "NULL"))
+	
+	# Update title
+	_update_hero_panel_title()
+	
 	# Create hero cards
+	print("  Creating %d hero cards..." % game_manager.heroes.size())
 	for hero in game_manager.heroes:
 		var card = hero_card_scene.instantiate()
 		hero_list.add_child(card)
-		card.setup(hero, for_mission if for_mission else selected_mission)
+		print("    → Calling setup for hero: %s with mission: %s" % [hero.hero_name, mission_to_use.mission_name if mission_to_use else "NULL"])
+		card.setup(hero, mission_to_use)
 		card.hero_selected.connect(_on_hero_selected)
 		card.hero_deselected.connect(_on_hero_deselected)
+	print("*** _refresh_hero_list complete ***\n")
 
 func _on_map_mission_clicked(mission: Mission) -> void:
-	if not mission.is_active and not mission.is_completed:
-		selected_mission = mission
-		_refresh_hero_list(mission)
-		game_manager.update_status("📋 Select heroes for: %s" % mission.mission_name)
+	print("\n================================================================")
+	print("MAP MISSION CLICKED")
+	print("  Mission: %s" % mission.mission_name)
+	print("  Is Active: %s" % mission.is_active)
+	print("  Is Completed: %s" % mission.is_completed)
+	print("================================================================\n")
+	
+	if mission.is_active:
+		game_manager.update_status("⏱️ Mission in progress: %s" % mission.mission_name)
+		selected_mission = null
+		_refresh_hero_list()
+		return
+	
+	if mission.is_completed:
+		game_manager.update_status("✅ Mission already completed: %s" % mission.mission_name)
+		selected_mission = null
+		_refresh_hero_list()
+		return
+	
+	# Mission is available for assignment
+	selected_mission = mission
+	_refresh_hero_list(mission)
+	
+	var assigned_count = mission.assigned_hero_ids.size()
+	var max_heroes = mission.max_heroes
+	
+	if assigned_count > 0:
+		game_manager.update_status("📋 %s - %d/%d heroes assigned. Select more or start mission!" % [mission.mission_name, assigned_count, max_heroes])
+	else:
+		game_manager.update_status("📋 Mission selected: %s - Select up to %d heroes!" % [mission.mission_name, max_heroes])
+	
+	print("  ✅ Selected mission for hero assignment. Max heroes: %d" % max_heroes)
 
 func _on_hero_selected(hero: Hero, mission: Mission) -> void:
+	print("🦸 Hero selected: %s for mission: %s" % [hero.hero_name, mission.mission_name])
+	
 	if game_manager.assign_hero_to_mission(hero, mission):
+		# Refresh hero list to show updated selection states
+		_refresh_hero_list(mission)
 		mission_map.refresh_missions()
+		mission_map.refresh_detail_panel()  # Immediately update detail panel
+		
+		var assigned_count = mission.assigned_hero_ids.size()
+		game_manager.update_status("✅ %s assigned! (%d/%d heroes)" % [hero.hero_name, assigned_count, mission.max_heroes])
+	else:
+		# Refresh to deselect the hero card
+		_refresh_hero_list(mission)
 
 func _on_hero_deselected(hero: Hero, mission: Mission) -> void:
+	print("🔄 Hero deselected: %s from mission: %s" % [hero.hero_name, mission.mission_name])
+	
 	if game_manager.unassign_hero_from_mission(hero, mission):
+		_refresh_hero_list(mission)
 		mission_map.refresh_missions()
+		mission_map.refresh_detail_panel()  # Immediately update detail panel
+		
+		var assigned_count = mission.assigned_hero_ids.size()
+		game_manager.update_status("🔄 %s removed (%d/%d heroes)" % [hero.hero_name, assigned_count, mission.max_heroes])
 
 func _on_mission_start_requested(mission: Mission) -> void:
+	print("🚀 Starting mission: %s" % mission.mission_name)
+	
 	if game_manager.start_mission(mission):
 		selected_mission = null
 		_refresh_hero_list()
 		mission_map.refresh_missions()
 		mission_map.close_detail_panel()
+	else:
+		# Keep mission selected if start failed
+		_refresh_hero_list(mission)
 
 func _on_hero_updated(_hero: Hero) -> void:
-	# Heroes are updated in real-time via the game manager
+	# Only refresh periodically, not every frame
 	pass
 
 func _on_mission_completed(_mission: Mission, _result: Dictionary) -> void:
+	# Clear selection if the completed mission was selected
+	if selected_mission and selected_mission.mission_id == _mission.mission_id:
+		selected_mission = null
+	
 	_refresh_hero_list()
-	# Only refresh missions when one completes
 	mission_map.refresh_missions()
 	
 	# Save after important events
