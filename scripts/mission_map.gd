@@ -116,7 +116,7 @@ func _refresh_all() -> void:
 		var label := Label.new()
 		label.name = "Label_" + zone_name
 		label.text = zone_name.to_upper()
-		label.position = Vector2(zx + 15, zy - 30)
+		label.position = Vector2(zx + 20, zy +20)
 		label.add_theme_font_size_override("font_size", 18)
 		label.add_theme_color_override("font_color", Color(1, 1, 1, 0.95))
 		label.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -367,3 +367,8 @@ func _on_detail_close_pressed() -> void:
 func _on_detail_start_pressed() -> void:
 	if selected_mission:
 		mission_started.emit(selected_mission)
+
+func close_detail_panel() -> void:
+	if mission_detail_panel:
+		mission_detail_panel.visible = false
+	selected_mission = null
