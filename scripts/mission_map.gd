@@ -170,7 +170,7 @@ func _create_mission_marker(mission: Variant, active: bool) -> void:
 	marker.mouse_exited.connect(func(): marker.modulate = Color.WHITE)
 	
 	map_canvas.add_child(marker)
-	marker.z_index = 10
+	marker.z_index = 0
 	mission_markers[mission.mission_id] = marker
 
 func _get_mission_position(mission: Variant) -> Vector2:
