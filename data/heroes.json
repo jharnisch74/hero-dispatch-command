@@ -1,0 +1,22 @@
+[
+  {
+	"hero_id": "h001",
+	"hero_name": "Firefighter Frank",
+	"hero_emoji": "🔥",
+	"level": 1,
+	"base_strength": 5,
+	"base_speed": 4,
+	"base_intelligence": 3,
+	"specialties": [0, 2]
+  },
+  {
+	"hero_id": "h002",
+	"hero_name": "Techie Tina",
+	"hero_emoji": "💻",
+	"level": 1,
+	"base_strength": 3,
+	"base_speed": 4,
+	"base_intelligence": 6,
+	"specialties": [1, 3]
+  }
+]

@@ -35,11 +35,25 @@ signal mission_completed(mission: Mission, result: Dictionary)
 func _ready() -> void:
 	_initialize_starting_heroes()
 	_spawn_initial_missions()
+	# Debug: reset hero availability
+	reset_hero_availability()
 
 func _process(delta: float) -> void:
 	_update_heroes(delta)
 	_update_active_missions(delta)
 	_update_mission_spawning(delta)
+	
+func reset_hero_availability() -> void:
+	for hero in heroes:
+		# Make sure all heroes are marked as free
+		hero.is_on_mission = false
+		hero.is_recovering = false
+		hero.current_mission_id = ""
+		# Optional: restore full health and stamina
+		hero.current_health = hero.max_health
+		hero.current_stamina = hero.max_stamina
+	print("✅ All heroes are now available")
+
 
 func _initialize_starting_heroes() -> void:
 	# Create starting roster

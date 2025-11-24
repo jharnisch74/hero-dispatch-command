@@ -1,0 +1,28 @@
+[
+  {
+	"mission_id": "m001",
+	"mission_name": "Bank Robbery",
+	"mission_emoji": "🏦",
+	"description": "Stop the gang robbing the downtown bank!",
+	"difficulty": 2,
+	"required_power": 15,
+	"min_heroes": 1,
+	"max_heroes": 3,
+	"money_reward": 200,
+	"fame_reward": 20,
+	"base_duration": 120.0
+  },
+  {
+	"mission_id": "m002",
+	"mission_name": "Rescue Cat",
+	"mission_emoji": "🐱",
+	"description": "Save the cat stuck on the tree in the park.",
+	"difficulty": 1,
+	"required_power": 5,
+	"min_heroes": 1,
+	"max_heroes": 2,
+	"money_reward": 50,
+	"fame_reward": 5,
+	"base_duration": 60.0
+  }
+]
