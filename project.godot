@@ -13,3 +13,7 @@ config_version=5
 config/name="Hero Dispatch Command"
 run/main_scene="uid://bge50pg6dll6h"
 config/features=PackedStringArray("4.5", "Forward Plus")
+
+[rendering]
+
+textures/vram_compression/import_etc2_astc=true
