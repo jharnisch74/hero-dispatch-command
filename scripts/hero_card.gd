@@ -17,6 +17,7 @@ extends PanelContainer
 var hero_data: Hero
 var selected_for_mission: bool = false
 var current_mission: Mission
+var game_manager: Node  # Need reference to check other mission assignments
 
 # Signals
 signal hero_selected(hero: Hero, mission: Mission)
@@ -26,13 +27,14 @@ func _ready() -> void:
 	select_button.pressed.connect(_on_select_pressed)
 	print("HeroCard _ready() called")
 
-func setup(hero: Hero, mission: Mission = null) -> void:
+func setup(hero: Hero, mission: Mission = null, gm: Node = null) -> void:
 	print("\n=== HERO CARD SETUP ===")
 	print("  Hero: %s" % (hero.hero_name if hero else "NULL"))
 	print("  Mission: %s" % (mission.mission_name if mission else "NULL"))
 	
 	hero_data = hero
 	current_mission = mission
+	game_manager = gm
 	
 	# Check if hero is already assigned to this mission
 	if mission and hero.hero_id in mission.assigned_hero_ids:
@@ -126,8 +128,18 @@ func update_display() -> void:
 	elif not current_mission:
 		print("  → Button DISABLED: No mission context")
 		button_should_be_enabled = false
-		button_text = "SELECT A MISSION FIRST"
-		card_color = Color(0.7, 0.7, 0.7)
+		
+		# Even without a mission context, check if hero is assigned to ANY mission
+		var assigned_mission = null
+		if game_manager and game_manager.has_method("is_hero_assigned_to_mission"):
+			assigned_mission = game_manager.is_hero_assigned_to_mission(hero_data.hero_id)
+		
+		if assigned_mission:
+			button_text = "ASSIGNED TO %s" % assigned_mission.mission_name.to_upper()
+			card_color = Color(0.8, 0.7, 0.5)
+		else:
+			button_text = "SELECT A MISSION FIRST"
+			card_color = Color(0.7, 0.7, 0.7)
 	elif current_mission.is_active:
 		print("  → Button DISABLED: Mission already active")
 		button_should_be_enabled = false
@@ -139,14 +151,25 @@ func update_display() -> void:
 		button_text = "COMPLETED"
 		card_color = Color(0.5, 0.5, 0.5)
 	else:
-		print("  → Button ENABLED: Hero available for selection")
-		button_should_be_enabled = true
-		if selected_for_mission:
-			button_text = "✓ SELECTED"
-			card_color = Color(0.7, 1.0, 0.7)
+		# Check if hero is assigned to a different mission
+		var assigned_mission = null
+		if game_manager and game_manager.has_method("is_hero_assigned_to_mission"):
+			assigned_mission = game_manager.is_hero_assigned_to_mission(hero_data.hero_id)
+		
+		if assigned_mission and assigned_mission.mission_id != current_mission.mission_id:
+			print("  → Button DISABLED: Hero assigned to another mission (%s)" % assigned_mission.mission_name)
+			button_should_be_enabled = false
+			button_text = "ASSIGNED TO %s" % assigned_mission.mission_name.to_upper()
+			card_color = Color(0.8, 0.7, 0.5)
 		else:
-			button_text = "SELECT FOR MISSION"
-			card_color = Color.WHITE
+			print("  → Button ENABLED: Hero available for selection")
+			button_should_be_enabled = true
+			if selected_for_mission:
+				button_text = "✓ SELECTED"
+				card_color = Color(0.7, 1.0, 0.7)
+			else:
+				button_text = "SELECT FOR MISSION"
+				card_color = Color.WHITE
 	
 	# Apply button state
 	select_button.disabled = not button_should_be_enabled

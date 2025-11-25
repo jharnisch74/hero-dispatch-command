@@ -7,6 +7,7 @@ var mission_id: String
 var mission_name: String
 var mission_emoji: String
 var description: String
+var zone: String = "downtown"  # NEW: For mission map placement
 
 # Difficulty
 enum Difficulty {EASY, MEDIUM, HARD, EXTREME}

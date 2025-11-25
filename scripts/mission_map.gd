@@ -88,23 +88,44 @@ func _refresh_all() -> void:
 	
 	print("MissionMap _refresh_all() called")
 	
-	# Remove old zones
-	for child in map_canvas.get_children():
-		if child.name.begins_with("Zone_") or child.name.begins_with("Border_") or child.name.begins_with("Label_"):
-			child.queue_free()
+	# Store current canvas size to detect if it changed
+	var current_size = map_canvas.size
+	print("  Map canvas size: %s" % current_size)
 	
-	# Remove old markers
+	# Only clear and redraw zones if size changed significantly or zones don't exist
+	var need_redraw_zones = true
+	var first_zone = map_canvas.get_node_or_null("Zone_downtown")
+	if first_zone and abs(current_size.x - map_canvas.size.x) < 10:
+		need_redraw_zones = false
+		print("  Keeping existing zones (size unchanged)")
+	
+	if need_redraw_zones:
+		# Remove old zones
+		for child in map_canvas.get_children():
+			if child.name.begins_with("Zone_") or child.name.begins_with("Border_") or child.name.begins_with("Label_"):
+				child.queue_free()
+		
+		# Draw new zones
+		_draw_zones(current_size.x, current_size.y)
+	
+	# Always refresh mission markers
 	for marker in mission_markers.values():
 		marker.queue_free()
 	mission_markers.clear()
 	used_positions.clear()
 	
-	var w: float = map_canvas.size.x
-	var h: float = map_canvas.size.y
+	# Spawn mission markers
+	if game_manager:
+		var total_missions = game_manager.active_missions.size() + game_manager.available_missions.size()
+		print("  Creating markers for %d missions" % total_missions)
+		for mission in game_manager.active_missions + game_manager.available_missions:
+			_create_mission_marker(mission, mission.is_active)
+	else:
+		print("  ERROR: game_manager is NULL!")
+
+func _draw_zones(w: float, h: float) -> void:
+	print("  Drawing zones with size: %s x %s" % [w, h])
 	
-	print("  Map canvas size: %s" % map_canvas.size)
-	
-	# Draw zones
 	for zone_name in city_zones:
 		var z: Dictionary = city_zones[zone_name]
 		var cx: float = z.x * w
@@ -144,15 +165,6 @@ func _refresh_all() -> void:
 		label.add_theme_color_override("font_color", Color(1, 1, 1, 0.95))
 		label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		map_canvas.add_child(label)
-	
-	# Spawn mission markers
-	if game_manager:
-		var total_missions = game_manager.active_missions.size() + game_manager.available_missions.size()
-		print("  Creating markers for %d missions" % total_missions)
-		for mission in game_manager.active_missions + game_manager.available_missions:
-			_create_mission_marker(mission, mission.is_active)
-	else:
-		print("  ERROR: game_manager is NULL!")
 
 func _create_mission_marker(mission: Variant, active: bool) -> void:
 	print("    Creating marker for: %s" % mission.mission_name)
@@ -217,18 +229,22 @@ func _get_mission_position(mission: Variant) -> Vector2:
 	if used_positions.has(mission.mission_id):
 		return used_positions[mission.mission_id]
 	
-	var zone_name: String = "downtown"
-	var n: String = mission.mission_name.to_lower()
-	if "rescue" in n or "fire" in n:
-		zone_name = "residential"
-	elif "cyber" in n or "tech" in n or "bomb" in n:
-		zone_name = "industrial"
-	elif "cat" in n or "pet" in n:
-		zone_name = "park"
-	elif "bank" in n or "robbery" in n or "villain" in n or "gang" in n:
-		zone_name = "downtown"
-	elif "bridge" in n or "hostage" in n:
-		zone_name = "waterfront"
+	# Use mission's zone property if available, otherwise infer from name
+	var zone_name: String = mission.get("zone") if mission.get("zone") else "downtown"
+	
+	# Fallback: infer zone from mission name if not explicitly set
+	if zone_name == "downtown":
+		var n: String = mission.mission_name.to_lower()
+		if "rescue" in n or "fire" in n:
+			zone_name = "residential"
+		elif "cyber" in n or "tech" in n or "bomb" in n or "traffic" in n:
+			zone_name = "industrial"
+		elif "cat" in n or "pet" in n:
+			zone_name = "park"
+		elif "bank" in n or "robbery" in n or "villain" in n or "gang" in n or "museum" in n:
+			zone_name = "downtown"
+		elif "bridge" in n or "hostage" in n or "waterfront" in n:
+			zone_name = "waterfront"
 	
 	var zone: Dictionary = city_zones[zone_name]
 	var w: float = map_canvas.size.x

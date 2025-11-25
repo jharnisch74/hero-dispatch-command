@@ -42,10 +42,10 @@ func _ready() -> void:
 	
 	# Try to load save, if it fails, create new game
 	if not save_manager.load_game():
-		_initial_ui_update()
+		await _initial_ui_update()
 	else:
 		# Save was loaded, refresh UI
-		_refresh_hero_list()
+		await _refresh_hero_list()
 		mission_map.refresh_missions()
 
 func _notification(what: int) -> void:
@@ -106,7 +106,8 @@ func _initial_ui_update() -> void:
 	money_label.text = "💰 Money: $%d" % game_manager.money
 	fame_label.text = "⭐ Fame: %d" % game_manager.fame
 	_update_hero_panel_title()
-	_refresh_hero_list()
+	await _refresh_hero_list()  # Wait for hero list to finish
+	await get_tree().process_frame  # Extra frame for layout
 	mission_map.refresh_missions()
 
 func _process(_delta: float) -> void:
@@ -140,13 +141,23 @@ func _refresh_hero_list(for_mission: Mission = null) -> void:
 	
 	# Create hero cards
 	print("  Creating %d hero cards..." % game_manager.heroes.size())
+	var cards = []
 	for hero in game_manager.heroes:
 		var card = hero_card_scene.instantiate()
 		hero_list.add_child(card)
-		print("    → Calling setup for hero: %s with mission: %s" % [hero.hero_name, mission_to_use.mission_name if mission_to_use else "NULL"])
-		card.setup(hero, mission_to_use)
+		cards.append(card)
 		card.hero_selected.connect(_on_hero_selected)
 		card.hero_deselected.connect(_on_hero_deselected)
+	
+	# Wait one frame for all cards to be in tree, then setup
+	await get_tree().process_frame
+	
+	for i in range(cards.size()):
+		var card = cards[i]
+		var hero = game_manager.heroes[i]
+		print("    → Calling setup for hero: %s with mission: %s" % [hero.hero_name, mission_to_use.mission_name if mission_to_use else "NULL"])
+		card.setup(hero, mission_to_use, game_manager)
+	
 	print("*** _refresh_hero_list complete ***\n")
 
 func _on_map_mission_clicked(mission: Mission) -> void:
@@ -160,18 +171,20 @@ func _on_map_mission_clicked(mission: Mission) -> void:
 	if mission.is_active:
 		game_manager.update_status("⏱️ Mission in progress: %s" % mission.mission_name)
 		selected_mission = null
-		_refresh_hero_list()
+		_refresh_hero_list()  # Don't await - fire and forget
 		return
 	
 	if mission.is_completed:
 		game_manager.update_status("✅ Mission already completed: %s" % mission.mission_name)
 		selected_mission = null
-		_refresh_hero_list()
+		_refresh_hero_list()  # Don't await - fire and forget
 		return
 	
 	# Mission is available for assignment
 	selected_mission = mission
-	_refresh_hero_list(mission)
+	
+	# Refresh hero list
+	_refresh_hero_list(mission)  # Don't await - fire and forget
 	
 	var assigned_count = mission.assigned_hero_ids.size()
 	var max_heroes = mission.max_heroes

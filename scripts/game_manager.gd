@@ -1,4 +1,5 @@
 # res://scripts/game_manager.gd
+# REFACTORED VERSION - Uses data files for heroes and missions
 extends Node
 
 # Resources
@@ -22,10 +23,6 @@ var money_label: Label
 var fame_label: Label
 var status_label: Label
 
-# Card scenes (preload)
-var hero_card_scene = preload("res://scenes/ui/hero_card.tscn")
-var mission_card_scene = preload("res://scenes/ui/mission_card.tscn")
-
 # Signals
 signal money_changed(new_amount: int)
 signal fame_changed(new_amount: int)
@@ -35,64 +32,90 @@ signal mission_completed(mission: Mission, result: Dictionary)
 func _ready() -> void:
 	_initialize_starting_heroes()
 	_spawn_initial_missions()
-	# Debug: reset hero availability
-	reset_hero_availability()
 
 func _process(delta: float) -> void:
 	_update_heroes(delta)
 	_update_active_missions(delta)
 	_update_mission_spawning(delta)
+
+func _input(event: InputEvent) -> void:
+	# Debug hotkey: Press F9 to force reset all hero availability
+	if event.is_action_pressed("ui_cancel") and Input.is_key_pressed(KEY_F9):
+		force_reset_all_heroes()
 	
-func reset_hero_availability() -> void:
+	# Debug hotkey: Press F8 to delete save and restart
+	if Input.is_key_pressed(KEY_F8):
+		delete_save_and_restart()
+
+func force_reset_all_heroes() -> void:
+	"""Debug function to force reset all heroes to available state"""
+	print("🔧 FORCING RESET OF ALL HEROES")
 	for hero in heroes:
-		# Make sure all heroes are marked as free
 		hero.is_on_mission = false
 		hero.is_recovering = false
+		hero.recovery_time_remaining = 0.0
 		hero.current_mission_id = ""
-		# Optional: restore full health and stamina
 		hero.current_health = hero.max_health
 		hero.current_stamina = hero.max_stamina
-	print("✅ All heroes are now available")
+		print("  ✅ Reset: %s" % hero.hero_name)
+	
+	# Also clear any stuck mission assignments
+	for mission in available_missions:
+		mission.assigned_hero_ids.clear()
+	
+	update_status("🔧 All heroes forcibly reset to available!")
 
+func delete_save_and_restart() -> void:
+	"""Debug function to delete save file and restart with fresh data"""
+	print("🗑️ DELETING SAVE FILE AND RESTARTING...")
+	const SAVE_PATH = "user://hero_dispatch_save.json"
+	if FileAccess.file_exists(SAVE_PATH):
+		DirAccess.remove_absolute(SAVE_PATH)
+		print("  ✅ Save file deleted")
+	
+	# Clear current data
+	heroes.clear()
+	available_missions.clear()
+	active_missions.clear()
+	money = 500
+	fame = 0
+	mission_counter = 0
+	
+	# Reinitialize
+	_initialize_starting_heroes()
+	_spawn_initial_missions()
+	
+	# Update UI
+	if money_label:
+		money_label.text = "💰 Money: $%d" % money
+	if fame_label:
+		fame_label.text = "⭐ Fame: %d" % fame
+	
+	update_status("🗑️ Save deleted! Fresh start with all heroes!")
+	print("  ✅ Game restarted with %d heroes" % heroes.size())
 
 func _initialize_starting_heroes() -> void:
-	# Create starting roster
-	var starting_heroes = [
-		{
-			"name": "Captain Thunder",
-			"emoji": "⚡",
-			"specs": [Hero.Specialty.COMBAT, Hero.Specialty.SPEED]
-		},
-		{
-			"name": "Shadow Strike",
-			"emoji": "🥷",
-			"specs": [Hero.Specialty.SPEED, Hero.Specialty.INVESTIGATION]
-		},
-		{
-			"name": "Tech Wizard",
-			"emoji": "🧙",
-			"specs": [Hero.Specialty.TECH, Hero.Specialty.INVESTIGATION]
-		},
-		{
-			"name": "Guardian",
-			"emoji": "🛡️",
-			"specs": [Hero.Specialty.RESCUE, Hero.Specialty.COMBAT]
-		}
-	]
+	# Only initialize if we don't already have heroes (fresh start)
+	if heroes.size() > 0:
+		print("Heroes already loaded (probably from save file)")
+		return
 	
-	for hero_data in starting_heroes:
-		# Create properly typed array
+	var hero_data_list = HeroData.get_starting_heroes()
+	print("Initializing %d starting heroes..." % hero_data_list.size())
+	
+	for hero_data in hero_data_list:
 		var specs_array: Array[Hero.Specialty] = []
-		for spec in hero_data.specs:
+		for spec in hero_data.specialties:
 			specs_array.append(spec)
 		
 		var hero = Hero.new(
 			"hero_" + str(heroes.size()),
 			hero_data.name,
 			hero_data.emoji,
-			specs_array  # Pass the typed array
+			specs_array
 		)
 		heroes.append(hero)
+		print("  Created hero: %s" % hero.hero_name)
 
 func _spawn_initial_missions() -> void:
 	for i in range(3):
@@ -111,7 +134,6 @@ func _update_active_missions(delta: float) -> void:
 		if mission.update_mission(delta):
 			completed_missions.append(mission)
 	
-	# Process completed missions
 	for mission in completed_missions:
 		_complete_mission(mission)
 
@@ -128,21 +150,7 @@ func _update_mission_spawning(delta: float) -> void:
 func _generate_new_mission() -> void:
 	mission_counter += 1
 	
-	# Mission templates
-	var mission_templates = [
-		{"name": "Cat Rescue", "emoji": "🐱", "desc": "Save a cat stuck in a tree", "diff": Mission.Difficulty.EASY, "specs": [Hero.Specialty.RESCUE]},
-		{"name": "Bank Robbery", "emoji": "🏦", "desc": "Stop criminals robbing the city bank", "diff": Mission.Difficulty.MEDIUM, "specs": [Hero.Specialty.COMBAT, Hero.Specialty.SPEED]},
-		{"name": "Hostage Crisis", "emoji": "🏢", "desc": "Rescue hostages from a building", "diff": Mission.Difficulty.HARD, "specs": [Hero.Specialty.RESCUE, Hero.Specialty.INVESTIGATION]},
-		{"name": "Cyber Attack", "emoji": "💻", "desc": "Stop hackers from stealing city data", "diff": Mission.Difficulty.MEDIUM, "specs": [Hero.Specialty.TECH]},
-		{"name": "Super Villain", "emoji": "🦹", "desc": "Defeat the infamous Dr. Chaos", "diff": Mission.Difficulty.EXTREME, "specs": [Hero.Specialty.COMBAT]},
-		{"name": "Bomb Threat", "emoji": "💣", "desc": "Defuse bombs across the city", "diff": Mission.Difficulty.HARD, "specs": [Hero.Specialty.TECH, Hero.Specialty.SPEED]},
-		{"name": "Investigation", "emoji": "🔍", "desc": "Solve a mysterious disappearance", "diff": Mission.Difficulty.MEDIUM, "specs": [Hero.Specialty.INVESTIGATION]},
-		{"name": "Fire Rescue", "emoji": "🔥", "desc": "Save people from a burning building", "diff": Mission.Difficulty.MEDIUM, "specs": [Hero.Specialty.RESCUE, Hero.Specialty.SPEED]},
-		{"name": "Gang War", "emoji": "⚔️", "desc": "Stop warring criminal factions", "diff": Mission.Difficulty.HARD, "specs": [Hero.Specialty.COMBAT]},
-		{"name": "Lost Pet", "emoji": "🐕", "desc": "Find a lost puppy in the park", "diff": Mission.Difficulty.EASY, "specs": [Hero.Specialty.INVESTIGATION]},
-		{"name": "Alien Invasion", "emoji": "👽", "desc": "Repel extraterrestrial attackers", "diff": Mission.Difficulty.EXTREME, "specs": [Hero.Specialty.COMBAT, Hero.Specialty.TECH]},
-		{"name": "Bridge Collapse", "emoji": "🌉", "desc": "Save civilians from a collapsing bridge", "diff": Mission.Difficulty.HARD, "specs": [Hero.Specialty.RESCUE]},
-	]
+	var mission_templates = MissionData.get_mission_templates()
 	
 	# Weight difficulties based on current fame
 	var difficulty_weights = []
@@ -155,7 +163,6 @@ func _generate_new_mission() -> void:
 	else:
 		difficulty_weights = [0.1, 0.25, 0.4, 0.25]
 	
-	# Pick a random template and adjust difficulty
 	var template = mission_templates[randi() % mission_templates.size()]
 	var difficulty = _pick_weighted_difficulty(difficulty_weights)
 	
@@ -163,15 +170,18 @@ func _generate_new_mission() -> void:
 		"mission_" + str(mission_counter),
 		template.name,
 		template.emoji,
-		template.desc,
+		template.description,
 		difficulty
 	)
 	
-	# Convert to typed array before assigning
+	# Set specialties
 	var specs_array: Array[Hero.Specialty] = []
-	for spec in template.specs:
+	for spec in template.specialties:
 		specs_array.append(spec)
 	mission.preferred_specialties = specs_array
+	
+	# Set zone (will be used by mission_map)
+	mission.zone = template.get("zone", "downtown")
 	
 	mission.max_heroes = 1 if difficulty == Mission.Difficulty.EASY else (3 if difficulty == Mission.Difficulty.EXTREME else 2)
 	
@@ -190,8 +200,23 @@ func _pick_weighted_difficulty(weights: Array) -> Mission.Difficulty:
 
 func assign_hero_to_mission(hero: Hero, mission: Mission) -> bool:
 	if not hero.is_available():
-		update_status("❌ Hero is not available!")
+		var reason = ""
+		if hero.is_on_mission:
+			reason = "currently on mission"
+		elif hero.is_recovering:
+			reason = "recovering"
+		elif hero.current_health <= 0:
+			reason = "defeated"
+		elif hero.current_stamina < 20:
+			reason = "exhausted"
+		update_status("❌ %s is %s!" % [hero.hero_name, reason])
 		return false
+	
+	# Check if hero is already assigned to ANY mission
+	for other_mission in available_missions:
+		if other_mission.mission_id != mission.mission_id and hero.hero_id in other_mission.assigned_hero_ids:
+			update_status("❌ %s is already assigned to %s!" % [hero.hero_name, other_mission.mission_name])
+			return false
 	
 	if mission.is_active or mission.is_completed:
 		update_status("❌ Mission already started or completed!")
@@ -215,13 +240,11 @@ func start_mission(mission: Mission) -> bool:
 		update_status("❌ Need at least %d hero(es) assigned!" % mission.min_heroes)
 		return false
 	
-	# Get assigned heroes
 	var assigned_heroes: Array[Hero] = []
 	for hero in heroes:
 		if hero.hero_id in mission.assigned_hero_ids:
 			assigned_heroes.append(hero)
 	
-	# Use stamina
 	for hero in assigned_heroes:
 		hero.use_stamina(30.0)
 	
@@ -235,11 +258,9 @@ func start_mission(mission: Mission) -> bool:
 func _complete_mission(mission: Mission) -> void:
 	var result = mission.complete_mission()
 	
-	# Award resources
 	add_money(result.money)
 	add_fame(result.fame)
 	
-	# Update heroes
 	var hero_names = []
 	for hero_id in result.hero_ids:
 		var hero = get_hero_by_id(hero_id)
@@ -249,19 +270,22 @@ func _complete_mission(mission: Mission) -> void:
 			hero.current_mission_id = ""
 			hero.add_experience(result.exp)
 			
-			# Apply damage risk
 			if randf() < mission.damage_risk:
 				var damage = randf_range(10, 30)
 				hero.take_damage(damage)
 	
-	# Create story-based result message
-	var story_message = _generate_mission_story(mission, result, hero_names)
+	var heroes_text = _format_hero_names(hero_names)
+	var story_message = MissionData.get_success_story(
+		mission.mission_name,
+		heroes_text,
+		result.success,
+		result.money,
+		result.fame
+	)
 	
-	# Show detailed result in status (won't be covered by autosave)
 	if status_label:
 		status_label.text = story_message
 	
-	# Also print to console for full details
 	print("=== MISSION COMPLETE ===")
 	print(story_message)
 	print("=======================")
@@ -269,82 +293,25 @@ func _complete_mission(mission: Mission) -> void:
 	mission_completed.emit(mission, result)
 	active_missions.erase(mission)
 
-func _generate_mission_story(mission: Mission, result: Dictionary, hero_names: Array) -> String:
-	var heroes_text = ""
+func _format_hero_names(hero_names: Array) -> String:
 	if hero_names.size() == 1:
-		heroes_text = hero_names[0]
+		return hero_names[0]
 	elif hero_names.size() == 2:
-		heroes_text = hero_names[0] + " and " + hero_names[1]
+		return hero_names[0] + " and " + hero_names[1]
 	else:
-		heroes_text = ", ".join(hero_names.slice(0, -1)) + ", and " + hero_names[-1]
-	
-	var story = ""
-	
-	if result.success:
-		# Success stories based on mission type
-		match mission.mission_name:
-			"Cat Rescue":
-				story = "✅ %s successfully rescued the cat from the tree! The grateful owner rewarded them. (+$%d 💰 +%d ⭐)" % [heroes_text, result.money, result.fame]
-			"Bank Robbery":
-				story = "✅ %s stopped the bank robbery! The criminals have been apprehended and the money secured. (+$%d 💰 +%d ⭐)" % [heroes_text, result.money, result.fame]
-			"Hostage Crisis":
-				story = "✅ %s rescued all hostages safely! The building was secured without casualties. (+$%d 💰 +%d ⭐)" % [heroes_text, result.money, result.fame]
-			"Cyber Attack":
-				story = "✅ %s thwarted the cyber attack! City data has been secured and hackers traced. (+$%d 💰 +%d ⭐)" % [heroes_text, result.money, result.fame]
-			"Super Villain":
-				story = "✅ %s defeated the villain! Dr. Chaos has been captured and imprisoned. The city is safe! (+$%d 💰 +%d ⭐)" % [heroes_text, result.money, result.fame]
-			"Bomb Threat":
-				story = "✅ %s defused all bombs with seconds to spare! Countless lives were saved. (+$%d 💰 +%d ⭐)" % [heroes_text, result.money, result.fame]
-			"Investigation":
-				story = "✅ %s solved the mystery! The missing person has been found safe and sound. (+$%d 💰 +%d ⭐)" % [heroes_text, result.money, result.fame]
-			"Fire Rescue":
-				story = "✅ %s evacuated the building and extinguished the flames! Everyone made it out safely. (+$%d 💰 +%d ⭐)" % [heroes_text, result.money, result.fame]
-			"Gang War":
-				story = "✅ %s stopped the gang war! Peace has been restored to the streets. (+$%d 💰 +%d ⭐)" % [heroes_text, result.money, result.fame]
-			"Lost Pet":
-				story = "✅ %s found the lost puppy! The family is overjoyed to be reunited. (+$%d 💰 +%d ⭐)" % [heroes_text, result.money, result.fame]
-			"Alien Invasion":
-				story = "✅ %s repelled the alien invaders! Earth is safe once more. (+$%d 💰 +%d ⭐)" % [heroes_text, result.money, result.fame]
-			"Bridge Collapse":
-				story = "✅ %s rescued everyone from the collapsing bridge! All civilians evacuated safely. (+$%d 💰 +%d ⭐)" % [heroes_text, result.money, result.fame]
-			_:
-				story = "✅ SUCCESS! %s completed %s! (+$%d 💰 +%d ⭐)" % [heroes_text, mission.mission_name, result.money, result.fame]
-	else:
-		# Failure stories
-		match mission.mission_name:
-			"Cat Rescue":
-				story = "❌ The cat escaped to another tree... %s tried their best. (Partial: +$%d 💰 +%d ⭐)" % [heroes_text, result.money, result.fame]
-			"Bank Robbery":
-				story = "❌ The robbers escaped with some cash, but %s prevented greater losses. (Partial: +$%d 💰 +%d ⭐)" % [heroes_text, result.money, result.fame]
-			"Hostage Crisis":
-				story = "❌ Some hostages were injured during the rescue. %s did what they could. (Partial: +$%d 💰 +%d ⭐)" % [heroes_text, result.money, result.fame]
-			"Cyber Attack":
-				story = "❌ Some data was stolen before %s could stop the hackers. (Partial: +$%d 💰 +%d ⭐)" % [heroes_text, result.money, result.fame]
-			"Super Villain":
-				story = "❌ Dr. Chaos escaped! %s fought valiantly but the villain got away. (Partial: +$%d 💰 +%d ⭐)" % [heroes_text, result.money, result.fame]
-			"Bomb Threat":
-				story = "❌ One bomb detonated causing minor damage. %s defused the rest in time. (Partial: +$%d 💰 +%d ⭐)" % [heroes_text, result.money, result.fame]
-			"Investigation":
-				story = "❌ The trail went cold... %s needs more clues to solve this case. (Partial: +$%d 💰 +%d ⭐)" % [heroes_text, result.money, result.fame]
-			"Fire Rescue":
-				story = "❌ The fire spread faster than expected. %s saved most people but some were injured. (Partial: +$%d 💰 +%d ⭐)" % [heroes_text, result.money, result.fame]
-			"Gang War":
-				story = "❌ The gangs scattered before %s could apprehend them all. The conflict continues. (Partial: +$%d 💰 +%d ⭐)" % [heroes_text, result.money, result.fame]
-			"Lost Pet":
-				story = "❌ The puppy ran off again! %s will keep searching. (Partial: +$%d 💰 +%d ⭐)" % [heroes_text, result.money, result.fame]
-			"Alien Invasion":
-				story = "❌ The aliens retreated but will return... %s bought us time. (Partial: +$%d 💰 +%d ⭐)" % [heroes_text, result.money, result.fame]
-			"Bridge Collapse":
-				story = "❌ Not everyone made it off in time. %s saved as many as they could. (Partial: +$%d 💰 +%d ⭐)" % [heroes_text, result.money, result.fame]
-			_:
-				story = "❌ FAILED! %s couldn't complete %s. (Partial: +$%d 💰 +%d ⭐)" % [heroes_text, mission.mission_name, result.money, result.fame]
-	
-	return story
+		return ", ".join(hero_names.slice(0, -1)) + ", and " + hero_names[-1]
 
 func get_hero_by_id(id: String) -> Hero:
 	for hero in heroes:
 		if hero.hero_id == id:
 			return hero
+	return null
+
+func is_hero_assigned_to_mission(hero_id: String) -> Mission:
+	"""Returns the mission a hero is assigned to, or null if not assigned"""
+	for mission in available_missions:
+		if hero_id in mission.assigned_hero_ids:
+			return mission
 	return null
 
 func add_money(amount: int) -> void:
