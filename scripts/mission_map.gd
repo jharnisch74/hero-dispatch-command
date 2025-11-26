@@ -27,10 +27,10 @@ signal mission_started(mission: Variant)
 
 # Your final layout
 var city_zones: Dictionary = {
-	"industrial":  {"x": 0.20, "y": 0.25, "width": 0.40, "height": 0.50},
-	"downtown":    {"x": 0.56, "y": 0.25, "width": 0.32, "height": 0.50},
-	"park":        {"x": 0.86, "y": 0.25, "width": 0.28, "height": 0.50},
-	"waterfront":  {"x": 0.25, "y": 0.75, "width": 0.50, "height": 0.50},
+	"industrial": {"x": 0.20, "y": 0.25, "width": 0.40, "height": 0.50},
+	"downtown": {"x": 0.56, "y": 0.25, "width": 0.32, "height": 0.50},
+	"park": {"x": 0.86, "y": 0.25, "width": 0.28, "height": 0.50},
+	"waterfront": {"x": 0.25, "y": 0.75, "width": 0.50, "height": 0.50},
 	"residential": {"x": 0.75, "y": 0.75, "width": 0.50, "height": 0.50}
 }
 
@@ -38,7 +38,7 @@ func _ready() -> void:
 	print("MissionMap _ready() called")
 	set_anchors_preset(PRESET_FULL_RECT)
 	size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	size_flags_vertical   = Control.SIZE_EXPAND_FILL
+	size_flags_vertical = Control.SIZE_EXPAND_FILL
 	_create_map_ui()
 	
 	# Wait for layout to be ready
@@ -71,16 +71,16 @@ func _create_map_ui() -> void:
 func refresh_missions() -> void:
 	print("refresh_missions() called")
 	if not is_inside_tree() or not map_canvas:
-		print("  Not ready yet, skipping")
+		print("  Not ready yet, skipping")
 		return
 	
 	# Make sure we have a valid size
 	if map_canvas.size.x <= 0 or map_canvas.size.y <= 0:
-		print("  Map canvas size invalid: %s, waiting..." % map_canvas.size)
+		print("  Map canvas size invalid: %s, waiting..." % map_canvas.size)
 		await get_tree().process_frame
 		await get_tree().process_frame
 	
-	print("  Calling _refresh_all")
+	print("  Calling _refresh_all")
 	call_deferred("_refresh_all")
 
 func _refresh_all() -> void:
@@ -90,14 +90,14 @@ func _refresh_all() -> void:
 	
 	# Store current canvas size to detect if it changed
 	var current_size = map_canvas.size
-	print("  Map canvas size: %s" % current_size)
+	print("  Map canvas size: %s" % current_size)
 	
 	# Only clear and redraw zones if size changed significantly or zones don't exist
 	var need_redraw_zones = true
 	var first_zone = map_canvas.get_node_or_null("Zone_downtown")
 	if first_zone and abs(current_size.x - map_canvas.size.x) < 10:
 		need_redraw_zones = false
-		print("  Keeping existing zones and roads (size unchanged)")
+		print("  Keeping existing zones and roads (size unchanged)")
 	
 	if need_redraw_zones:
 		# Remove old zones and roads
@@ -117,21 +117,21 @@ func _refresh_all() -> void:
 	# Spawn mission markers
 	if game_manager:
 		var total_missions = game_manager.active_missions.size() + game_manager.available_missions.size()
-		print("  Creating markers for %d missions" % total_missions)
+		print("  Creating markers for %d missions" % total_missions)
 		for mission in game_manager.active_missions + game_manager.available_missions:
 			_create_mission_marker(mission, mission.is_active)
 	else:
-		print("  ERROR: game_manager is NULL!")
+		print("  ERROR: game_manager is NULL!")
 
 func _draw_zones(w: float, h: float) -> void:
-	print("  Drawing zones with size: %s x %s" % [w, h])
+	print("  Drawing zones with size: %s x %s" % [w, h])
 	
 	# Draw zones first
 	for zone_name in city_zones:
 		var z: Dictionary = city_zones[zone_name]
 		var cx: float = z.x * w
 		var cy: float = z.y * h
-		var zw: float = z.width  * w
+		var zw: float = z.width * w
 		var zh: float = z.height * h
 		var zx: float = cx - zw * 0.5
 		var zy: float = cy - zh * 0.5
@@ -142,11 +142,11 @@ func _draw_zones(w: float, h: float) -> void:
 		rect.size = Vector2(zw, zh)
 		rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		match zone_name:
-			"downtown":    rect.color = Color(1.0, 0.42, 0.42, 0.5)
-			"industrial":  rect.color = Color(1.0, 0.84, 0.0, 0.5)
+			"downtown": rect.color = Color(1.0, 0.42, 0.42, 0.5)
+			"industrial": rect.color = Color(1.0, 0.84, 0.0, 0.5)
 			"residential": rect.color = Color(0.3, 0.8, 0.64, 0.5)
-			"park":        rect.color = Color(0.32, 0.81, 0.4, 0.5)
-			"waterfront":  rect.color = Color(0.0, 0.85, 1.0, 0.5)
+			"park": rect.color = Color(0.32, 0.81, 0.4, 0.5)
+			"waterfront": rect.color = Color(0.0, 0.85, 1.0, 0.5)
 		map_canvas.add_child(rect)
 		
 		var border := ReferenceRect.new()
@@ -171,111 +171,11 @@ func _draw_zones(w: float, h: float) -> void:
 	_draw_roads(w, h)
 
 func _draw_roads(w: float, h: float) -> void:
-	var road_color = Color(0.2, 0.2, 0.2, 1.0)
-	var main_road_width = 10.0
-	var road_width = 7.0
-	var side_street_width = 4.0
-	
-	# === MAIN ARTERIAL ROADS ===
-	# Main vertical highway (left-right divider)
-	_draw_road_line(Vector2(w * 0.48, 0), Vector2(w * 0.48, h), main_road_width, road_color)
-	
-	# Main horizontal highway (top-bottom divider)
-	_draw_road_line(Vector2(0, h * 0.55), Vector2(w, h * 0.55), main_road_width, road_color)
-	
-	# Secondary vertical road (through park/residential)
-	_draw_road_line(Vector2(w * 0.85, 0), Vector2(w * 0.85, h), road_width, road_color)
-	
-	# === INDUSTRIAL ZONE (left side, top) ===
-	# Main industrial access road
-	_draw_road_line(Vector2(0, h * 0.25), Vector2(w * 0.48, h * 0.25), road_width, road_color)
-	_draw_road_line(Vector2(0, h * 0.40), Vector2(w * 0.48, h * 0.40), road_width, road_color)
-	
-	# Vertical connector in industrial
-	_draw_road_line(Vector2(w * 0.20, h * 0.10), Vector2(w * 0.20, h * 0.55), road_width, road_color)
-	_draw_road_line(Vector2(w * 0.35, h * 0.10), Vector2(w * 0.35, h * 0.55), road_width, road_color)
-	
-	# Industrial side streets (vertical)
-	for i in range(3):
-		var x = w * (0.08 + i * 0.06)
-		_draw_road_line(Vector2(x, h * 0.15), Vector2(x, h * 0.50), side_street_width, road_color)
-	
-	# Industrial roundabout with connections
-	var industrial_roundabout_center = Vector2(w * 0.30, h * 0.32)
-	_draw_roundabout(industrial_roundabout_center, 18.0, road_color, road_width)
-	# Connect roads to roundabout
-	_draw_road_line(Vector2(w * 0.20, h * 0.32), industrial_roundabout_center - Vector2(18, 0), road_width, road_color)
-	_draw_road_line(industrial_roundabout_center + Vector2(18, 0), Vector2(w * 0.48, h * 0.32), road_width, road_color)
-	
-	# === DOWNTOWN ZONE (center-right, top) ===
-	# Downtown main roads (vertical)
-	_draw_road_line(Vector2(w * 0.58, h * 0.10), Vector2(w * 0.58, h * 0.55), road_width, road_color)
-	_draw_road_line(Vector2(w * 0.72, h * 0.10), Vector2(w * 0.72, h * 0.55), road_width, road_color)
-	
-	# Downtown main roads (horizontal)
-	_draw_road_line(Vector2(w * 0.48, h * 0.20), Vector2(w * 0.85, h * 0.20), road_width, road_color)
-	_draw_road_line(Vector2(w * 0.48, h * 0.35), Vector2(w * 0.85, h * 0.35), road_width, road_color)
-	
-	# Downtown grid (vertical streets)
-	for i in range(4):
-		var x = w * (0.53 + i * 0.06)
-		_draw_road_line(Vector2(x, h * 0.12), Vector2(x, h * 0.53), side_street_width, road_color)
-	
-	# Downtown grid (horizontal streets)
-	for i in range(5):
-		var y = h * (0.25 + i * 0.06)
-		_draw_road_line(Vector2(w * 0.48, y), Vector2(w * 0.85, y), side_street_width, road_color)
-	
-	# Downtown roundabout with connections
-	var downtown_roundabout_center = Vector2(w * 0.65, h * 0.42)
-	_draw_roundabout(downtown_roundabout_center, 20.0, road_color, road_width)
-	# Connect roads to roundabout
-	_draw_road_line(Vector2(w * 0.58, h * 0.42), downtown_roundabout_center - Vector2(20, 0), road_width, road_color)
-	_draw_road_line(downtown_roundabout_center + Vector2(20, 0), Vector2(w * 0.72, h * 0.42), road_width, road_color)
-	
-	# === PARK ZONE (right side, top) ===
-	# Park perimeter road
-	_draw_road_line(Vector2(w * 0.85, h * 0.15), Vector2(w * 0.98, h * 0.20), side_street_width, road_color)
-	_draw_road_line(Vector2(w * 0.98, h * 0.20), Vector2(w * 0.98, h * 0.45), side_street_width, road_color)
-	_draw_road_line(Vector2(w * 0.98, h * 0.45), Vector2(w * 0.85, h * 0.50), side_street_width, road_color)
-	
-	# === WATERFRONT ZONE (left side, bottom) ===
-	# Waterfront access roads
-	_draw_road_line(Vector2(0, h * 0.75), Vector2(w * 0.48, h * 0.75), road_width, road_color)
-	_draw_road_line(Vector2(0, h * 0.90), Vector2(w * 0.48, h * 0.90), road_width, road_color)
-	
-	# Waterfront vertical connectors
-	_draw_road_line(Vector2(w * 0.20, h * 0.55), Vector2(w * 0.20, h), road_width, road_color)
-	_draw_road_line(Vector2(w * 0.35, h * 0.55), Vector2(w * 0.35, h), road_width, road_color)
-	
-	# Waterfront side streets
-	for i in range(3):
-		var x = w * (0.08 + i * 0.06)
-		_draw_road_line(Vector2(x, h * 0.65), Vector2(x, h * 0.98), side_street_width, road_color)
-	
-	# WATERFRONT BRIDGE
-	_draw_bridge(Vector2(w * 0.30, h * 0.75), Vector2(w * 0.40, h * 0.75), 12.0)
-	
-	# === RESIDENTIAL ZONE (right side, bottom) ===
-	# Residential main roads (vertical)
-	_draw_road_line(Vector2(w * 0.58, h * 0.55), Vector2(w * 0.58, h), road_width, road_color)
-	_draw_road_line(Vector2(w * 0.72, h * 0.55), Vector2(w * 0.72, h), road_width, road_color)
-	
-	# Residential main roads (horizontal)
-	_draw_road_line(Vector2(w * 0.48, h * 0.70), Vector2(w, h * 0.70), road_width, road_color)
-	_draw_road_line(Vector2(w * 0.48, h * 0.85), Vector2(w, h * 0.85), road_width, road_color)
-	
-	# Residential grid (vertical streets)
-	for i in range(5):
-		var x = w * (0.53 + i * 0.06)
-		_draw_road_line(Vector2(x, h * 0.58), Vector2(x, h * 0.98), side_street_width, road_color)
-	
-	# Residential grid (horizontal streets)
-	for i in range(5):
-		var y = h * (0.62 + i * 0.06)
-		_draw_road_line(Vector2(w * 0.48, y), Vector2(w * 0.98, y), side_street_width, road_color)
+	# ALL ROAD DRAWING LOGIC HAS BEEN REMOVED
+	pass
 
 func _draw_road_line(from: Vector2, to: Vector2, width: float, color: Color) -> void:
+	# Function is kept but unused by _draw_roads
 	var line := ColorRect.new()
 	line.name = "Road_" + str(randi())
 	line.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -288,11 +188,12 @@ func _draw_road_line(from: Vector2, to: Vector2, width: float, color: Color) -> 
 	line.size = Vector2(length, width)
 	line.rotation = angle
 	line.pivot_offset = Vector2(0, width / 2)
-	line.z_index = 0  # Same level as zones
+	line.z_index = 0 # Same level as zones
 	
 	map_canvas.add_child(line)
 
 func _draw_roundabout(center: Vector2, radius: float, color: Color, width: float) -> void:
+	# Function is kept but unused by _draw_roads
 	# Draw circle using multiple small rectangles
 	var segments = 32
 	for i in range(segments):
@@ -319,6 +220,7 @@ func _draw_roundabout(center: Vector2, radius: float, color: Color, width: float
 		map_canvas.add_child(seg_line)
 
 func _draw_bridge(from: Vector2, to: Vector2, width: float) -> void:
+	# Function is kept but unused by _draw_roads
 	# Bridge base
 	var bridge_base := ColorRect.new()
 	bridge_base.name = "Bridge_Base"
@@ -332,7 +234,7 @@ func _draw_bridge(from: Vector2, to: Vector2, width: float) -> void:
 	bridge_base.size = Vector2(length, width)
 	bridge_base.rotation = angle
 	bridge_base.pivot_offset = Vector2(0, width / 2)
-	bridge_base.z_index = 1  # Above roads
+	bridge_base.z_index = 1 # Above roads
 	
 	map_canvas.add_child(bridge_base)
 	
@@ -361,7 +263,7 @@ func _draw_bridge(from: Vector2, to: Vector2, width: float) -> void:
 	map_canvas.add_child(railing_bottom)
 
 func _create_mission_marker(mission: Variant, active: bool) -> void:
-	print("    Creating marker for: %s" % mission.mission_name)
+	print("    Creating marker for: %s" % mission.mission_name)
 	
 	var marker := PanelContainer.new()
 	marker.custom_minimum_size = Vector2(MISSION_ICON_SIZE, MISSION_ICON_SIZE)
@@ -370,9 +272,9 @@ func _create_mission_marker(mission: Variant, active: bool) -> void:
 	
 	var style := StyleBoxFlat.new()
 	style.set_corner_radius_all(MISSION_ICON_SIZE / 2)
-	style.border_width_left   = 4
-	style.border_width_top    = 4
-	style.border_width_right  = 4
+	style.border_width_left = 4
+	style.border_width_top = 4
+	style.border_width_right = 4
 	style.border_width_bottom = 4
 	
 	if active:
@@ -399,14 +301,14 @@ func _create_mission_marker(mission: Variant, active: bool) -> void:
 	
 	# CRITICAL: Connect the gui_input signal with proper logging
 	marker.gui_input.connect(func(event):
-		print("      Marker gui_input received: %s" % event)
+		print("      Marker gui_input received: %s" % event)
 		if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
-			print("      → LEFT CLICK DETECTED on mission: %s" % mission.mission_name)
+			print("      → LEFT CLICK DETECTED on mission: %s" % mission.mission_name)
 			_on_marker_clicked(mission)
 	)
 	
 	marker.mouse_entered.connect(func(): 
-		print("      Mouse entered marker: %s" % mission.mission_name)
+		print("      Mouse entered marker: %s" % mission.mission_name)
 		marker.modulate = Color(1.3, 1.3, 1.3)
 	)
 	marker.mouse_exited.connect(func(): 
@@ -414,10 +316,10 @@ func _create_mission_marker(mission: Variant, active: bool) -> void:
 	)
 	
 	map_canvas.add_child(marker)
-	marker.z_index = 10  # Make sure markers are on top
+	marker.z_index = 10 # Make sure markers are on top
 	mission_markers[mission.mission_id] = marker
 	
-	print("      Marker created at position: %s" % marker.position)
+	print("      Marker created at position: %s" % marker.position)
 
 func _get_mission_position(mission: Variant) -> Vector2:
 	if used_positions.has(mission.mission_id):
@@ -445,7 +347,7 @@ func _get_mission_position(mission: Variant) -> Vector2:
 	var h: float = map_canvas.size.y
 	var cx: float = zone.x * w
 	var cy: float = zone.y * h
-	var zw: float = zone.width  * w
+	var zw: float = zone.width * w
 	var zh: float = zone.height * h
 	
 	var rng := RandomNumberGenerator.new()
@@ -476,9 +378,9 @@ func _create_detail_panel() -> void:
 	var style := StyleBoxFlat.new()
 	style.bg_color = Color("#16213e")
 	style.set_corner_radius_all(12)
-	style.border_width_left   = 3
-	style.border_width_top    = 3
-	style.border_width_right  = 3
+	style.border_width_left = 3
+	style.border_width_top = 3
+	style.border_width_right = 3
 	style.border_width_bottom = 3
 	style.border_color = Color("#00d9ff")
 	mission_detail_panel.add_theme_stylebox_override("panel", style)
@@ -552,17 +454,17 @@ func _create_detail_panel() -> void:
 	vbox.add_child(detail_start_button)
 	
 	add_child(mission_detail_panel)
-	mission_detail_panel.z_index = 100  # Make sure detail panel is on top
+	mission_detail_panel.z_index = 100 # Make sure detail panel is on top
 
 func _on_marker_clicked(mission: Variant) -> void:
 	print("\n!!! _on_marker_clicked called !!!")
-	print("  Mission: %s" % mission.mission_name)
-	print("  Emitting mission_clicked signal...")
+	print("  Mission: %s" % mission.mission_name)
+	print("  Emitting mission_clicked signal...")
 	
 	selected_mission = mission
 	mission_clicked.emit(mission)
 	
-	print("  Signal emitted!")
+	print("  Signal emitted!")
 	print("!!! End _on_marker_clicked !!!\n")
 	
 	var marker = mission_markers[mission.mission_id]
@@ -632,7 +534,7 @@ func _on_detail_close_pressed() -> void:
 func _on_detail_start_pressed() -> void:
 	print("Detail start button pressed")
 	if selected_mission:
-		print("  Emitting mission_started signal for: %s" % selected_mission.mission_name)
+		print("  Emitting mission_started signal for: %s" % selected_mission.mission_name)
 		mission_started.emit(selected_mission)
 
 func close_detail_panel() -> void:

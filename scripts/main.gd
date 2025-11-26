@@ -39,7 +39,6 @@ func _ready() -> void:
 	# Wait for UI to be laid out properly
 	await get_tree().process_frame
 	await get_tree().process_frame
-	await get_tree().process_frame
 	
 	# Try to load save, if it fails, create new game
 	if not save_manager.load_game():
@@ -47,7 +46,6 @@ func _ready() -> void:
 	else:
 		# Save was loaded, refresh UI
 		await _refresh_hero_list()
-		await get_tree().process_frame
 		mission_map.refresh_missions()
 
 func _notification(what: int) -> void:
@@ -108,10 +106,8 @@ func _initial_ui_update() -> void:
 	money_label.text = "💰 Money: $%d" % game_manager.money
 	fame_label.text = "⭐ Fame: %d" % game_manager.fame
 	_update_hero_panel_title()
-	await _refresh_hero_list()
-	await get_tree().process_frame
-	await get_tree().process_frame
-	await get_tree().process_frame
+	await _refresh_hero_list()  # Wait for hero list to finish
+	await get_tree().process_frame  # Extra frame for layout
 	mission_map.refresh_missions()
 
 func _process(_delta: float) -> void:
