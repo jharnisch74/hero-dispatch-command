@@ -43,6 +43,7 @@ layout_mode = 2
 
 [node name="Header" type="HBoxContainer" parent="Overlay/CenterContainer/UpgradeWindow/MarginContainer/VBoxContainer"]
 layout_mode = 2
+alignment = 1
 
 [node name="TitleLabel" type="Label" parent="Overlay/CenterContainer/UpgradeWindow/MarginContainer/VBoxContainer/Header"]
 layout_mode = 2
