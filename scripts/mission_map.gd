@@ -97,15 +97,15 @@ func _refresh_all() -> void:
 	var first_zone = map_canvas.get_node_or_null("Zone_downtown")
 	if first_zone and abs(current_size.x - map_canvas.size.x) < 10:
 		need_redraw_zones = false
-		print("  Keeping existing zones (size unchanged)")
+		print("  Keeping existing zones and roads (size unchanged)")
 	
 	if need_redraw_zones:
-		# Remove old zones
+		# Remove old zones and roads
 		for child in map_canvas.get_children():
-			if child.name.begins_with("Zone_") or child.name.begins_with("Border_") or child.name.begins_with("Label_"):
+			if child.name.begins_with("Zone_") or child.name.begins_with("Border_") or child.name.begins_with("Label_") or child.name.begins_with("Road_") or child.name.begins_with("Bridge_"):
 				child.queue_free()
 		
-		# Draw new zones
+		# Draw new zones and roads
 		_draw_zones(current_size.x, current_size.y)
 	
 	# Always refresh mission markers
@@ -126,6 +126,7 @@ func _refresh_all() -> void:
 func _draw_zones(w: float, h: float) -> void:
 	print("  Drawing zones with size: %s x %s" % [w, h])
 	
+	# Draw zones first
 	for zone_name in city_zones:
 		var z: Dictionary = city_zones[zone_name]
 		var cx: float = z.x * w
@@ -165,6 +166,199 @@ func _draw_zones(w: float, h: float) -> void:
 		label.add_theme_color_override("font_color", Color(1, 1, 1, 0.95))
 		label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		map_canvas.add_child(label)
+	
+	# Draw road system on top
+	_draw_roads(w, h)
+
+func _draw_roads(w: float, h: float) -> void:
+	var road_color = Color(0.2, 0.2, 0.2, 1.0)
+	var main_road_width = 10.0
+	var road_width = 7.0
+	var side_street_width = 4.0
+	
+	# === MAIN ARTERIAL ROADS ===
+	# Main vertical highway (left-right divider)
+	_draw_road_line(Vector2(w * 0.48, 0), Vector2(w * 0.48, h), main_road_width, road_color)
+	
+	# Main horizontal highway (top-bottom divider)
+	_draw_road_line(Vector2(0, h * 0.55), Vector2(w, h * 0.55), main_road_width, road_color)
+	
+	# Secondary vertical road (through park/residential)
+	_draw_road_line(Vector2(w * 0.85, 0), Vector2(w * 0.85, h), road_width, road_color)
+	
+	# === INDUSTRIAL ZONE (left side, top) ===
+	# Main industrial access road
+	_draw_road_line(Vector2(0, h * 0.25), Vector2(w * 0.48, h * 0.25), road_width, road_color)
+	_draw_road_line(Vector2(0, h * 0.40), Vector2(w * 0.48, h * 0.40), road_width, road_color)
+	
+	# Vertical connector in industrial
+	_draw_road_line(Vector2(w * 0.20, h * 0.10), Vector2(w * 0.20, h * 0.55), road_width, road_color)
+	_draw_road_line(Vector2(w * 0.35, h * 0.10), Vector2(w * 0.35, h * 0.55), road_width, road_color)
+	
+	# Industrial side streets (vertical)
+	for i in range(3):
+		var x = w * (0.08 + i * 0.06)
+		_draw_road_line(Vector2(x, h * 0.15), Vector2(x, h * 0.50), side_street_width, road_color)
+	
+	# Industrial roundabout with connections
+	var industrial_roundabout_center = Vector2(w * 0.30, h * 0.32)
+	_draw_roundabout(industrial_roundabout_center, 18.0, road_color, road_width)
+	# Connect roads to roundabout
+	_draw_road_line(Vector2(w * 0.20, h * 0.32), industrial_roundabout_center - Vector2(18, 0), road_width, road_color)
+	_draw_road_line(industrial_roundabout_center + Vector2(18, 0), Vector2(w * 0.48, h * 0.32), road_width, road_color)
+	
+	# === DOWNTOWN ZONE (center-right, top) ===
+	# Downtown main roads (vertical)
+	_draw_road_line(Vector2(w * 0.58, h * 0.10), Vector2(w * 0.58, h * 0.55), road_width, road_color)
+	_draw_road_line(Vector2(w * 0.72, h * 0.10), Vector2(w * 0.72, h * 0.55), road_width, road_color)
+	
+	# Downtown main roads (horizontal)
+	_draw_road_line(Vector2(w * 0.48, h * 0.20), Vector2(w * 0.85, h * 0.20), road_width, road_color)
+	_draw_road_line(Vector2(w * 0.48, h * 0.35), Vector2(w * 0.85, h * 0.35), road_width, road_color)
+	
+	# Downtown grid (vertical streets)
+	for i in range(4):
+		var x = w * (0.53 + i * 0.06)
+		_draw_road_line(Vector2(x, h * 0.12), Vector2(x, h * 0.53), side_street_width, road_color)
+	
+	# Downtown grid (horizontal streets)
+	for i in range(5):
+		var y = h * (0.25 + i * 0.06)
+		_draw_road_line(Vector2(w * 0.48, y), Vector2(w * 0.85, y), side_street_width, road_color)
+	
+	# Downtown roundabout with connections
+	var downtown_roundabout_center = Vector2(w * 0.65, h * 0.42)
+	_draw_roundabout(downtown_roundabout_center, 20.0, road_color, road_width)
+	# Connect roads to roundabout
+	_draw_road_line(Vector2(w * 0.58, h * 0.42), downtown_roundabout_center - Vector2(20, 0), road_width, road_color)
+	_draw_road_line(downtown_roundabout_center + Vector2(20, 0), Vector2(w * 0.72, h * 0.42), road_width, road_color)
+	
+	# === PARK ZONE (right side, top) ===
+	# Park perimeter road
+	_draw_road_line(Vector2(w * 0.85, h * 0.15), Vector2(w * 0.98, h * 0.20), side_street_width, road_color)
+	_draw_road_line(Vector2(w * 0.98, h * 0.20), Vector2(w * 0.98, h * 0.45), side_street_width, road_color)
+	_draw_road_line(Vector2(w * 0.98, h * 0.45), Vector2(w * 0.85, h * 0.50), side_street_width, road_color)
+	
+	# === WATERFRONT ZONE (left side, bottom) ===
+	# Waterfront access roads
+	_draw_road_line(Vector2(0, h * 0.75), Vector2(w * 0.48, h * 0.75), road_width, road_color)
+	_draw_road_line(Vector2(0, h * 0.90), Vector2(w * 0.48, h * 0.90), road_width, road_color)
+	
+	# Waterfront vertical connectors
+	_draw_road_line(Vector2(w * 0.20, h * 0.55), Vector2(w * 0.20, h), road_width, road_color)
+	_draw_road_line(Vector2(w * 0.35, h * 0.55), Vector2(w * 0.35, h), road_width, road_color)
+	
+	# Waterfront side streets
+	for i in range(3):
+		var x = w * (0.08 + i * 0.06)
+		_draw_road_line(Vector2(x, h * 0.65), Vector2(x, h * 0.98), side_street_width, road_color)
+	
+	# WATERFRONT BRIDGE
+	_draw_bridge(Vector2(w * 0.30, h * 0.75), Vector2(w * 0.40, h * 0.75), 12.0)
+	
+	# === RESIDENTIAL ZONE (right side, bottom) ===
+	# Residential main roads (vertical)
+	_draw_road_line(Vector2(w * 0.58, h * 0.55), Vector2(w * 0.58, h), road_width, road_color)
+	_draw_road_line(Vector2(w * 0.72, h * 0.55), Vector2(w * 0.72, h), road_width, road_color)
+	
+	# Residential main roads (horizontal)
+	_draw_road_line(Vector2(w * 0.48, h * 0.70), Vector2(w, h * 0.70), road_width, road_color)
+	_draw_road_line(Vector2(w * 0.48, h * 0.85), Vector2(w, h * 0.85), road_width, road_color)
+	
+	# Residential grid (vertical streets)
+	for i in range(5):
+		var x = w * (0.53 + i * 0.06)
+		_draw_road_line(Vector2(x, h * 0.58), Vector2(x, h * 0.98), side_street_width, road_color)
+	
+	# Residential grid (horizontal streets)
+	for i in range(5):
+		var y = h * (0.62 + i * 0.06)
+		_draw_road_line(Vector2(w * 0.48, y), Vector2(w * 0.98, y), side_street_width, road_color)
+
+func _draw_road_line(from: Vector2, to: Vector2, width: float, color: Color) -> void:
+	var line := ColorRect.new()
+	line.name = "Road_" + str(randi())
+	line.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	line.color = color
+	
+	var length = from.distance_to(to)
+	var angle = from.angle_to_point(to)
+	
+	line.position = from
+	line.size = Vector2(length, width)
+	line.rotation = angle
+	line.pivot_offset = Vector2(0, width / 2)
+	line.z_index = 0  # Same level as zones
+	
+	map_canvas.add_child(line)
+
+func _draw_roundabout(center: Vector2, radius: float, color: Color, width: float) -> void:
+	# Draw circle using multiple small rectangles
+	var segments = 32
+	for i in range(segments):
+		var angle1 = (i / float(segments)) * TAU
+		var angle2 = ((i + 1) / float(segments)) * TAU
+		
+		var p1 = center + Vector2(cos(angle1), sin(angle1)) * radius
+		var p2 = center + Vector2(cos(angle2), sin(angle2)) * radius
+		
+		var seg_line := ColorRect.new()
+		seg_line.name = "Road_Roundabout_" + str(i)
+		seg_line.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		seg_line.color = color
+		
+		var length = p1.distance_to(p2)
+		var seg_angle = p1.angle_to_point(p2)
+		
+		seg_line.position = p1
+		seg_line.size = Vector2(length, width)
+		seg_line.rotation = seg_angle
+		seg_line.pivot_offset = Vector2(0, width / 2)
+		seg_line.z_index = 0
+		
+		map_canvas.add_child(seg_line)
+
+func _draw_bridge(from: Vector2, to: Vector2, width: float) -> void:
+	# Bridge base
+	var bridge_base := ColorRect.new()
+	bridge_base.name = "Bridge_Base"
+	bridge_base.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	bridge_base.color = Color(0.55, 0.45, 0.35, 1.0)
+	
+	var length = from.distance_to(to)
+	var angle = from.angle_to_point(to)
+	
+	bridge_base.position = from
+	bridge_base.size = Vector2(length, width)
+	bridge_base.rotation = angle
+	bridge_base.pivot_offset = Vector2(0, width / 2)
+	bridge_base.z_index = 1  # Above roads
+	
+	map_canvas.add_child(bridge_base)
+	
+	# Bridge railings (top)
+	var railing_top := ColorRect.new()
+	railing_top.name = "Bridge_Railing_Top"
+	railing_top.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	railing_top.color = Color(0.4, 0.35, 0.3, 1.0)
+	railing_top.position = from
+	railing_top.size = Vector2(length, 2)
+	railing_top.rotation = angle
+	railing_top.pivot_offset = Vector2(0, -width / 2)
+	railing_top.z_index = 2
+	map_canvas.add_child(railing_top)
+	
+	# Bridge railings (bottom)
+	var railing_bottom := ColorRect.new()
+	railing_bottom.name = "Bridge_Railing_Bottom"
+	railing_bottom.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	railing_bottom.color = Color(0.4, 0.35, 0.3, 1.0)
+	railing_bottom.position = from
+	railing_bottom.size = Vector2(length, 2)
+	railing_bottom.rotation = angle
+	railing_bottom.pivot_offset = Vector2(0, width / 2 + 2)
+	railing_bottom.z_index = 2
+	map_canvas.add_child(railing_bottom)
 
 func _create_mission_marker(mission: Variant, active: bool) -> void:
 	print("    Creating marker for: %s" % mission.mission_name)
