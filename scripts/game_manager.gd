@@ -16,6 +16,12 @@ var mission_counter: int = 0
 var next_mission_spawn_time: float = 5.0
 var mission_spawn_timer: float = 0.0
 
+# Chaos System
+var chaos_system: ChaosSystem
+
+# Recruitment System
+var recruitment_system: RecruitmentSystem
+
 # UI References (set by Main scene)
 var hero_list_container: VBoxContainer
 var mission_list_container: VBoxContainer
@@ -28,10 +34,26 @@ signal money_changed(new_amount: int)
 signal fame_changed(new_amount: int)
 signal hero_updated(hero: Hero)
 signal mission_completed(mission: Mission, result: Dictionary)
+signal heroes_changed()
 
 func _ready() -> void:
+	_initialize_chaos_system()
+	_initialize_recruitment_system()
 	_initialize_starting_heroes()
 	_spawn_initial_missions()
+
+func _initialize_chaos_system() -> void:
+	chaos_system = ChaosSystem.new(self)
+	add_child(chaos_system)
+	
+	# Connect chaos signals
+	chaos_system.chaos_level_changed.connect(_on_chaos_level_changed)
+	chaos_system.chaos_threshold_crossed.connect(_on_chaos_threshold_crossed)
+	chaos_system.crisis_event_triggered.connect(_on_crisis_event_triggered)
+
+func _initialize_recruitment_system() -> void:
+	recruitment_system = RecruitmentSystem.new(self)
+	add_child(recruitment_system)
 
 func _process(delta: float) -> void:
 	_update_heroes(delta)
@@ -81,6 +103,14 @@ func delete_save_and_restart() -> void:
 	fame = 0
 	mission_counter = 0
 	
+	# Reset chaos system
+	if chaos_system:
+		chaos_system.reset()
+	
+	# Reset recruitment system
+	if recruitment_system:
+		recruitment_system.reset()
+	
 	# Reinitialize
 	_initialize_starting_heroes()
 	_spawn_initial_missions()
@@ -91,7 +121,7 @@ func delete_save_and_restart() -> void:
 	if fame_label:
 		fame_label.text = "⭐ Fame: %d" % fame
 	
-	update_status("🗑️ Save deleted! Fresh start with all heroes!")
+	update_status("🗑️ Save deleted! Fresh start with 3 heroes!")
 	print("  ✅ Game restarted with %d heroes" % heroes.size())
 
 func _initialize_starting_heroes() -> void:
@@ -100,10 +130,11 @@ func _initialize_starting_heroes() -> void:
 		print("Heroes already loaded (probably from save file)")
 		return
 	
-	var hero_data_list = HeroData.get_starting_heroes()
-	print("Initializing %d starting heroes..." % hero_data_list.size())
+	# Use recruitment system's starting heroes (3 balanced heroes)
+	var starting_heroes = recruitment_system.get_starting_heroes()
+	print("Initializing %d starting heroes..." % starting_heroes.size())
 	
-	for hero_data in hero_data_list:
+	for hero_data in starting_heroes:
 		var specs_array: Array[Hero.Specialty] = []
 		for spec in hero_data.specialties:
 			specs_array.append(spec)
@@ -114,6 +145,12 @@ func _initialize_starting_heroes() -> void:
 			hero_data.emoji,
 			specs_array
 		)
+		
+		# Boost starter heroes (they're all RARE)
+		hero.base_strength += 2
+		hero.base_speed += 2
+		hero.base_intelligence += 2
+		
 		heroes.append(hero)
 		print("  Created hero: %s" % hero.hero_name)
 
@@ -184,6 +221,10 @@ func _generate_new_mission() -> void:
 	mission.zone = template.get("zone", "downtown")
 	
 	mission.max_heroes = 1 if difficulty == Mission.Difficulty.EASY else (3 if difficulty == Mission.Difficulty.EXTREME else 2)
+	
+	# Apply chaos effects to the mission
+	if chaos_system:
+		chaos_system.apply_chaos_to_mission(mission)
 	
 	available_missions.append(mission)
 
@@ -258,6 +299,13 @@ func start_mission(mission: Mission) -> bool:
 func _complete_mission(mission: Mission) -> void:
 	var result = mission.complete_mission()
 	
+	# Update chaos system based on mission result
+	if chaos_system:
+		if result.success:
+			chaos_system.on_mission_success(mission)
+		else:
+			chaos_system.on_mission_failed(mission)
+	
 	add_money(result.money)
 	add_fame(result.fame)
 	
@@ -282,6 +330,13 @@ func _complete_mission(mission: Mission) -> void:
 		result.money,
 		result.fame
 	)
+	
+	# Add chaos info to story message if chaos increased
+	if not result.success and chaos_system:
+		var zone = mission.zone if mission.get("zone") else "downtown"
+		var chaos_level = chaos_system.get_chaos_level(zone)
+		var chaos_tier = chaos_system.get_chaos_tier(zone)
+		story_message += "\n\n🔥 Chaos in %s: %.0f%% (%s)" % [zone.capitalize(), chaos_level, chaos_tier]
 	
 	if status_label:
 		status_label.text = story_message
@@ -349,3 +404,39 @@ func upgrade_hero_stat(hero: Hero, stat_type: String) -> bool:
 	else:
 		update_status("❌ Not enough money! Need $%d" % cost)
 	return false
+
+# Chaos System Signal Handlers
+func _on_chaos_level_changed(zone: String, new_level: float) -> void:
+	# Optionally update UI or trigger visual effects
+	pass
+
+func _on_chaos_threshold_crossed(zone: String, threshold: String) -> void:
+	var tier_emoji = ""
+	match threshold:
+		"LOW":
+			tier_emoji = "⚠️"
+		"MEDIUM":
+			tier_emoji = "🔥"
+		"HIGH":
+			tier_emoji = "💥"
+		"CRITICAL":
+			tier_emoji = "🚨"
+	
+	update_status("%s %s chaos has reached %s level!" % [tier_emoji, zone.capitalize(), threshold])
+
+func _on_crisis_event_triggered(zone: String, event_type: String) -> void:
+	var event_name = event_type.replace("_", " ").capitalize()
+	update_status("🚨 CRISIS EVENT: %s in %s!" % [event_name, zone.capitalize()])
+
+func get_zone_chaos_info() -> Dictionary:
+	"""Get chaos information for all zones"""
+	var info = {}
+	if chaos_system:
+		for zone in ["downtown", "industrial", "residential", "park", "waterfront"]:
+			info[zone] = {
+				"level": chaos_system.get_chaos_level(zone),
+				"tier": chaos_system.get_chaos_tier(zone),
+				"color": chaos_system.get_chaos_color(zone),
+				"effects": chaos_system.get_chaos_effects(zone)
+			}
+	return info

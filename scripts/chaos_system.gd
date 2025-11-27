@@ -295,3 +295,9 @@ func deserialize(data: Dictionary) -> void:
 	"""Deserialize chaos system state from save data"""
 	if data.has("zone_chaos"):
 		zone_chaos = data.zone_chaos.duplicate()
+
+func reset() -> void:
+	"""Reset all chaos levels to 0"""
+	for zone in zone_chaos.keys():
+		zone_chaos[zone] = 0.0
+	print("ChaosSystem: All zones reset to 0% chaos")

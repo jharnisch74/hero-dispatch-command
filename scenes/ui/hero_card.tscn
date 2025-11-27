@@ -116,6 +116,7 @@ text = "🧠 INT: 0"
 
 [node name="CenterStats" type="VBoxContainer" parent="MarginContainer/VBoxContainer/StatsRow"]
 layout_mode = 2
+size_flags_horizontal = 3
 
 [node name="SpecialtiesLabel" type="Label" parent="MarginContainer/VBoxContainer/StatsRow/CenterStats"]
 layout_mode = 2
@@ -125,6 +126,7 @@ horizontal_alignment = 1
 
 [node name="SpecialtyList" type="Label" parent="MarginContainer/VBoxContainer/StatsRow/CenterStats"]
 layout_mode = 2
+horizontal_alignment = 1
 
 [node name="RightStats" type="VBoxContainer" parent="MarginContainer/VBoxContainer/StatsRow"]
 layout_mode = 2

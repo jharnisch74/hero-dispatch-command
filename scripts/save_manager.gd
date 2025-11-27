@@ -1,16 +1,15 @@
 # res://scripts/save_manager.gd
-# New file - handles all save/load operations
+# Handles all save/load operations including chaos system
 
 extends Node
 
 const SAVE_PATH = "user://hero_dispatch_save.json"
-const AUTO_SAVE_INTERVAL = 30.0  # Auto-save every 30 seconds
+const AUTO_SAVE_INTERVAL = 30.0
 
 var auto_save_timer: float = 0.0
 var game_manager: Node = null
 
 func _ready() -> void:
-	# This will be called when added to the scene tree
 	pass
 
 func _process(delta: float) -> void:
@@ -36,7 +35,9 @@ func save_game() -> bool:
 		"mission_counter": game_manager.mission_counter,
 		"heroes": _serialize_heroes(),
 		"available_missions": _serialize_missions(game_manager.available_missions),
-		"active_missions": _serialize_missions(game_manager.active_missions)
+		"active_missions": _serialize_missions(game_manager.active_missions),
+		"chaos_system": game_manager.chaos_system.serialize() if game_manager.chaos_system else {},
+		"recruitment_system": game_manager.recruitment_system.serialize() if game_manager.recruitment_system else {}
 	}
 	
 	var json_string = JSON.stringify(save_data, "\t")
@@ -50,7 +51,6 @@ func save_game() -> bool:
 	file.close()
 	
 	print("Game saved successfully at: ", SAVE_PATH)
-	# Don't update status label - let mission results show instead
 	
 	return true
 
@@ -91,6 +91,14 @@ func load_game() -> bool:
 	# Load missions
 	game_manager.available_missions = _deserialize_missions(save_data.get("available_missions", []))
 	game_manager.active_missions = _deserialize_missions(save_data.get("active_missions", []))
+	
+	# Load chaos system data
+	if save_data.has("chaos_system") and game_manager.chaos_system:
+		game_manager.chaos_system.deserialize(save_data.chaos_system)
+	
+	# Load recruitment system data
+	if save_data.has("recruitment_system") and game_manager.recruitment_system:
+		game_manager.recruitment_system.deserialize(save_data.recruitment_system)
 	
 	# Update UI
 	if game_manager.money_label:
@@ -193,7 +201,8 @@ func _serialize_missions(missions: Array) -> Array:
 			"is_completed": mission.is_completed,
 			"assigned_hero_ids": mission.assigned_hero_ids,
 			"success_chance": mission.success_chance,
-			"damage_risk": mission.damage_risk
+			"damage_risk": mission.damage_risk,
+			"zone": mission.zone
 		}
 		missions_data.append(mission_dict)
 	
@@ -223,6 +232,7 @@ func _deserialize_missions(missions_data: Array) -> Array[Mission]:
 		mission.time_remaining = mission_dict.get("time_remaining", 0.0)
 		mission.is_active = mission_dict.get("is_active", false)
 		mission.is_completed = mission_dict.get("is_completed", false)
+		mission.zone = mission_dict.get("zone", "downtown")
 		
 		# Convert assigned_hero_ids to typed array
 		var hero_ids: Array[String] = []

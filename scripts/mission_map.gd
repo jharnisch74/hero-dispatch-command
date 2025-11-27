@@ -26,12 +26,16 @@ signal mission_clicked(mission: Variant)
 signal mission_started(mission: Variant)
 
 # Your final layout
+
 var city_zones: Dictionary = {
-	"industrial": {"x": 0.20, "y": 0.25, "width": 0.40, "height": 0.50},
-	"downtown": {"x": 0.56, "y": 0.25, "width": 0.32, "height": 0.50},
-	"park": {"x": 0.86, "y": 0.25, "width": 0.28, "height": 0.50},
-	"waterfront": {"x": 0.25, "y": 0.75, "width": 0.50, "height": 0.50},
-	"residential": {"x": 0.75, "y": 0.75, "width": 0.50, "height": 0.50}
+	# TOP ROW: (No change)
+	"industrial": {"x": 0.20, "y": 0.25, "width": 0.40, "height": 0.50},  
+	"downtown": {"x": 0.55, "y": 0.25, "width": 0.30, "height": 0.50},   
+	"park": {"x": 0.85, "y": 0.25, "width": 0.30, "height": 0.50},
+   
+	# BOTTOM ROW: Waterfront (40%) + Residential (60%) = 100%
+	"waterfront": {"x": 0.20, "y": 0.75, "width": 0.40, "height": 0.50}, # Starts at 0.00, Ends at 0.40
+	"residential": {"x": 0.70, "y": 0.75, "width": 0.60, "height": 0.50} # Starts at 0.40, Ends at 1.00
 }
 
 func _ready() -> void:
@@ -66,21 +70,20 @@ func _create_map_ui() -> void:
 	map_canvas.add_child(bg)
 	
 	_create_detail_panel()
-	# Don't call _refresh_all here, wait for _ready to finish
 
 func refresh_missions() -> void:
 	print("refresh_missions() called")
 	if not is_inside_tree() or not map_canvas:
-		print("  Not ready yet, skipping")
+		print("  Not ready yet, skipping")
 		return
 	
 	# Make sure we have a valid size
 	if map_canvas.size.x <= 0 or map_canvas.size.y <= 0:
-		print("  Map canvas size invalid: %s, waiting..." % map_canvas.size)
+		print("  Map canvas size invalid: %s, waiting..." % map_canvas.size)
 		await get_tree().process_frame
 		await get_tree().process_frame
 	
-	print("  Calling _refresh_all")
+	print("  Calling _refresh_all")
 	call_deferred("_refresh_all")
 
 func _refresh_all() -> void:
@@ -90,23 +93,26 @@ func _refresh_all() -> void:
 	
 	# Store current canvas size to detect if it changed
 	var current_size = map_canvas.size
-	print("  Map canvas size: %s" % current_size)
+	print("  Map canvas size: %s" % current_size)
 	
 	# Only clear and redraw zones if size changed significantly or zones don't exist
 	var need_redraw_zones = true
 	var first_zone = map_canvas.get_node_or_null("Zone_downtown")
 	if first_zone and abs(current_size.x - map_canvas.size.x) < 10:
 		need_redraw_zones = false
-		print("  Keeping existing zones and roads (size unchanged)")
+		print("  Keeping existing zones and roads (size unchanged)")
 	
 	if need_redraw_zones:
-		# Remove old zones and roads
+		# Remove old zones, chaos displays, and roads
 		for child in map_canvas.get_children():
-			if child.name.begins_with("Zone_") or child.name.begins_with("Border_") or child.name.begins_with("Label_") or child.name.begins_with("Road_") or child.name.begins_with("Bridge_"):
+			if child.name.begins_with("Zone_") or child.name.begins_with("Border_") or child.name.begins_with("Label_") or child.name.begins_with("ChaosDisplay_") or child.name.begins_with("Road_") or child.name.begins_with("Bridge_"):
 				child.queue_free()
 		
 		# Draw new zones and roads
 		_draw_zones(current_size.x, current_size.y)
+	else:
+		# Even if zones don't need redrawing, update chaos displays
+		_update_chaos_displays()
 	
 	# Always refresh mission markers
 	for marker in mission_markers.values():
@@ -117,14 +123,19 @@ func _refresh_all() -> void:
 	# Spawn mission markers
 	if game_manager:
 		var total_missions = game_manager.active_missions.size() + game_manager.available_missions.size()
-		print("  Creating markers for %d missions" % total_missions)
+		print("  Creating markers for %d missions" % total_missions)
 		for mission in game_manager.active_missions + game_manager.available_missions:
 			_create_mission_marker(mission, mission.is_active)
 	else:
-		print("  ERROR: game_manager is NULL!")
+		print("  ERROR: game_manager is NULL!")
 
 func _draw_zones(w: float, h: float) -> void:
-	print("  Drawing zones with size: %s x %s" % [w, h])
+	print("  Drawing zones with size: %s x %s" % [w, h])
+	
+	# Get chaos info if available
+	var chaos_info = {}
+	if game_manager and game_manager.has_method("get_zone_chaos_info"):
+		chaos_info = game_manager.get_zone_chaos_info()
 	
 	# Draw zones first
 	for zone_name in city_zones:
@@ -141,12 +152,32 @@ func _draw_zones(w: float, h: float) -> void:
 		rect.position = Vector2(zx, zy)
 		rect.size = Vector2(zw, zh)
 		rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		
+		# Base zone color
+		var base_color: Color
 		match zone_name:
-			"downtown": rect.color = Color(1.0, 0.42, 0.42, 0.5)
-			"industrial": rect.color = Color(1.0, 0.84, 0.0, 0.5)
-			"residential": rect.color = Color(0.3, 0.8, 0.64, 0.5)
-			"park": rect.color = Color(0.32, 0.81, 0.4, 0.5)
-			"waterfront": rect.color = Color(0.0, 0.85, 1.0, 0.5)
+			"downtown":
+				base_color = Color(1.0, 0.42, 0.42, 0.5)
+			"industrial":
+				base_color = Color(1.0, 0.84, 0.0, 0.5)
+			"residential":
+				base_color = Color(0.3, 0.8, 0.64, 0.5)
+			"park":
+				base_color = Color(0.32, 0.81, 0.4, 0.5)
+			"waterfront":
+				base_color = Color(0.0, 0.85, 1.0, 0.5)
+			_:
+				base_color = Color(0.5, 0.5, 0.5, 0.5)
+		
+		# Tint zone with chaos color if chaos exists
+		if chaos_info.has(zone_name):
+			var chaos_level = chaos_info[zone_name].level
+			var chaos_color = chaos_info[zone_name].color
+			var chaos_intensity = chaos_level / 100.0
+			rect.color = base_color.lerp(chaos_color.darkened(0.3), chaos_intensity * 0.6)
+		else:
+			rect.color = base_color
+		
 		map_canvas.add_child(rect)
 		
 		var border := ReferenceRect.new()
@@ -158,6 +189,7 @@ func _draw_zones(w: float, h: float) -> void:
 		border.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		map_canvas.add_child(border)
 		
+		# Zone label
 		var label := Label.new()
 		label.name = "Label_" + zone_name
 		label.text = zone_name.to_upper()
@@ -166,6 +198,10 @@ func _draw_zones(w: float, h: float) -> void:
 		label.add_theme_color_override("font_color", Color(1, 1, 1, 0.95))
 		label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		map_canvas.add_child(label)
+		
+		# Chaos display in zone
+		if chaos_info.has(zone_name):
+			_create_zone_chaos_display(zone_name, chaos_info[zone_name], Vector2(zx, zy), zw)
 	
 	# Draw road system on top
 	_draw_roads(w, h)
@@ -173,6 +209,131 @@ func _draw_zones(w: float, h: float) -> void:
 func _draw_roads(w: float, h: float) -> void:
 	# ALL ROAD DRAWING LOGIC HAS BEEN REMOVED
 	pass
+
+func _create_zone_chaos_display(zone_name: String, chaos_data: Dictionary, zone_pos: Vector2, zone_width: float) -> void:
+	"""Create a chaos meter display within the zone"""
+	var chaos_level = chaos_data.level
+	var chaos_tier = chaos_data.tier
+	var chaos_color = chaos_data.color
+	
+	# Create a small panel for the chaos display
+	var panel := PanelContainer.new()
+	panel.name = "ChaosDisplay_" + zone_name
+	panel.position = Vector2(zone_pos.x + 20, zone_pos.y + 55)  # Below zone name
+	panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	
+	# Style the panel
+	var panel_style := StyleBoxFlat.new()
+	panel_style.bg_color = Color(0, 0, 0, 0.7)
+	panel_style.set_corner_radius_all(5)
+	panel_style.content_margin_left = 8
+	panel_style.content_margin_right = 8
+	panel_style.content_margin_top = 5
+	panel_style.content_margin_bottom = 5
+	panel.add_theme_stylebox_override("panel", panel_style)
+	
+	# VBox for chaos info
+	var vbox := VBoxContainer.new()
+	vbox.add_theme_constant_override("separation", 3)
+	panel.add_child(vbox)
+	
+	# Chaos tier label with emoji
+	var tier_label := Label.new()
+	var emoji = ""
+	match chaos_tier:
+		"CRITICAL":
+			emoji = "🚨 "
+		"HIGH":
+			emoji = "💥 "
+		"MEDIUM":
+			emoji = "🔥 "
+		"LOW":
+			emoji = "⚠️ "
+		"STABLE":
+			emoji = "✅ "
+	
+	tier_label.text = emoji + chaos_tier
+	tier_label.add_theme_font_size_override("font_size", 14)
+	tier_label.add_theme_color_override("font_color", chaos_color)
+	vbox.add_child(tier_label)
+	
+	# Progress bar background
+	var bar_bg := ColorRect.new()
+	bar_bg.custom_minimum_size = Vector2(min(120, zone_width - 60), 12)
+	bar_bg.color = Color(0.2, 0.2, 0.2, 0.9)
+	vbox.add_child(bar_bg)
+	
+	# Progress bar fill
+	var bar_fill := ColorRect.new()
+	bar_fill.name = "ChaosBar_" + zone_name
+	var bar_width = (chaos_level / 100.0) * bar_bg.custom_minimum_size.x
+	bar_fill.custom_minimum_size = Vector2(bar_width, 12)
+	bar_fill.size = Vector2(bar_width, 12)
+	bar_fill.color = chaos_color
+	bar_fill.position = Vector2(0, 0)
+	bar_bg.add_child(bar_fill)
+	
+	# Percentage label
+	var percent_label := Label.new()
+	percent_label.text = "%.0f%%" % chaos_level
+	percent_label.add_theme_font_size_override("font_size", 11)
+	percent_label.add_theme_color_override("font_color", Color(1, 1, 1, 0.95))
+	vbox.add_child(percent_label)
+	
+	map_canvas.add_child(panel)
+	panel.z_index = 5  # Above zones but below mission markers
+
+func _update_chaos_displays() -> void:
+	"""Update existing chaos displays without redrawing entire zones"""
+	if not game_manager or not game_manager.has_method("get_zone_chaos_info"):
+		return
+	
+	var chaos_info = game_manager.get_zone_chaos_info()
+	
+	for zone_name in chaos_info.keys():
+		var display = map_canvas.get_node_or_null("ChaosDisplay_" + zone_name)
+		if not display:
+			continue
+		
+		var chaos_data = chaos_info[zone_name]
+		var chaos_level = chaos_data.level
+		var chaos_tier = chaos_data.tier
+		var chaos_color = chaos_data.color
+		
+		# Update tier label
+		var vbox = display.get_child(0)
+		if vbox:
+			var tier_label = vbox.get_child(0)
+			if tier_label:
+				var emoji = ""
+				match chaos_tier:
+					"CRITICAL":
+						emoji = "🚨 "
+					"HIGH":
+						emoji = "💥 "
+					"MEDIUM":
+						emoji = "🔥 "
+					"LOW":
+						emoji = "⚠️ "
+					"STABLE":
+						emoji = "✅ "
+				tier_label.text = emoji + chaos_tier
+				tier_label.add_theme_color_override("font_color", chaos_color)
+			
+			# Update progress bar
+			var bar_bg = vbox.get_child(1)
+			if bar_bg:
+				var bar_fill = bar_bg.get_node_or_null("ChaosBar_" + zone_name)
+				if bar_fill:
+					var bar_width = (chaos_level / 100.0) * bar_bg.custom_minimum_size.x
+					bar_fill.custom_minimum_size = Vector2(bar_width, 12)
+					bar_fill.size = Vector2(bar_width, 12)
+					bar_fill.color = chaos_color
+			
+			# Update percentage
+			var percent_label = vbox.get_child(2)
+			if percent_label:
+				percent_label.text = "%.0f%%" % chaos_level
 
 func _draw_road_line(from: Vector2, to: Vector2, width: float, color: Color) -> void:
 	# Function is kept but unused by _draw_roads
@@ -188,13 +349,12 @@ func _draw_road_line(from: Vector2, to: Vector2, width: float, color: Color) -> 
 	line.size = Vector2(length, width)
 	line.rotation = angle
 	line.pivot_offset = Vector2(0, width / 2)
-	line.z_index = 0 # Same level as zones
+	line.z_index = 0
 	
 	map_canvas.add_child(line)
 
 func _draw_roundabout(center: Vector2, radius: float, color: Color, width: float) -> void:
 	# Function is kept but unused by _draw_roads
-	# Draw circle using multiple small rectangles
 	var segments = 32
 	for i in range(segments):
 		var angle1 = (i / float(segments)) * TAU
@@ -221,7 +381,6 @@ func _draw_roundabout(center: Vector2, radius: float, color: Color, width: float
 
 func _draw_bridge(from: Vector2, to: Vector2, width: float) -> void:
 	# Function is kept but unused by _draw_roads
-	# Bridge base
 	var bridge_base := ColorRect.new()
 	bridge_base.name = "Bridge_Base"
 	bridge_base.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -234,11 +393,10 @@ func _draw_bridge(from: Vector2, to: Vector2, width: float) -> void:
 	bridge_base.size = Vector2(length, width)
 	bridge_base.rotation = angle
 	bridge_base.pivot_offset = Vector2(0, width / 2)
-	bridge_base.z_index = 1 # Above roads
+	bridge_base.z_index = 1
 	
 	map_canvas.add_child(bridge_base)
 	
-	# Bridge railings (top)
 	var railing_top := ColorRect.new()
 	railing_top.name = "Bridge_Railing_Top"
 	railing_top.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -250,7 +408,6 @@ func _draw_bridge(from: Vector2, to: Vector2, width: float) -> void:
 	railing_top.z_index = 2
 	map_canvas.add_child(railing_top)
 	
-	# Bridge railings (bottom)
 	var railing_bottom := ColorRect.new()
 	railing_bottom.name = "Bridge_Railing_Bottom"
 	railing_bottom.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -263,7 +420,7 @@ func _draw_bridge(from: Vector2, to: Vector2, width: float) -> void:
 	map_canvas.add_child(railing_bottom)
 
 func _create_mission_marker(mission: Variant, active: bool) -> void:
-	print("    Creating marker for: %s" % mission.mission_name)
+	print("    Creating marker for: %s" % mission.mission_name)
 	
 	var marker := PanelContainer.new()
 	marker.custom_minimum_size = Vector2(MISSION_ICON_SIZE, MISSION_ICON_SIZE)
@@ -299,16 +456,12 @@ func _create_mission_marker(mission: Variant, active: bool) -> void:
 		tween.tween_property(marker, "scale", Vector2(1.15, 1.15), 0.6)
 		tween.tween_property(marker, "scale", Vector2(1.0, 1.0), 0.6)
 	
-	# CRITICAL: Connect the gui_input signal with proper logging
 	marker.gui_input.connect(func(event):
-		print("      Marker gui_input received: %s" % event)
 		if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
-			print("      → LEFT CLICK DETECTED on mission: %s" % mission.mission_name)
 			_on_marker_clicked(mission)
 	)
 	
 	marker.mouse_entered.connect(func(): 
-		print("      Mouse entered marker: %s" % mission.mission_name)
 		marker.modulate = Color(1.3, 1.3, 1.3)
 	)
 	marker.mouse_exited.connect(func(): 
@@ -316,19 +469,15 @@ func _create_mission_marker(mission: Variant, active: bool) -> void:
 	)
 	
 	map_canvas.add_child(marker)
-	marker.z_index = 10 # Make sure markers are on top
+	marker.z_index = 10
 	mission_markers[mission.mission_id] = marker
-	
-	print("      Marker created at position: %s" % marker.position)
 
 func _get_mission_position(mission: Variant) -> Vector2:
 	if used_positions.has(mission.mission_id):
 		return used_positions[mission.mission_id]
 	
-	# Use mission's zone property if available, otherwise infer from name
 	var zone_name: String = mission.get("zone") if mission.get("zone") else "downtown"
 	
-	# Fallback: infer zone from mission name if not explicitly set
 	if zone_name == "downtown":
 		var n: String = mission.mission_name.to_lower()
 		if "rescue" in n or "fire" in n:
@@ -454,18 +603,14 @@ func _create_detail_panel() -> void:
 	vbox.add_child(detail_start_button)
 	
 	add_child(mission_detail_panel)
-	mission_detail_panel.z_index = 100 # Make sure detail panel is on top
+	mission_detail_panel.z_index = 100
 
 func _on_marker_clicked(mission: Variant) -> void:
 	print("\n!!! _on_marker_clicked called !!!")
-	print("  Mission: %s" % mission.mission_name)
-	print("  Emitting mission_clicked signal...")
+	print("  Mission: %s" % mission.mission_name)
 	
 	selected_mission = mission
 	mission_clicked.emit(mission)
-	
-	print("  Signal emitted!")
-	print("!!! End _on_marker_clicked !!!\n")
 	
 	var marker = mission_markers[mission.mission_id]
 	var center = marker.position + Vector2(MISSION_ICON_SIZE / 2, MISSION_ICON_SIZE / 2)
@@ -482,7 +627,8 @@ func _on_marker_clicked(mission: Variant) -> void:
 	_update_detail_panel()
 
 func _update_detail_panel() -> void:
-	if not selected_mission: return
+	if not selected_mission:
+		return
 	
 	detail_name_label.text = "%s %s" % [selected_mission.mission_emoji, selected_mission.mission_name]
 	detail_difficulty_label.text = selected_mission.get_difficulty_string()
@@ -516,7 +662,8 @@ func refresh_detail_panel() -> void:
 		_update_detail_panel()
 
 func _update_timer_display() -> void:
-	if not selected_mission or not selected_mission.is_active: return
+	if not selected_mission or not selected_mission.is_active:
+		return
 	var mins: int = int(selected_mission.time_remaining) / 60
 	var secs: int = int(selected_mission.time_remaining) % 60
 	detail_timer_label.text = "Time: %02d:%02d" % [mins, secs]
@@ -524,8 +671,12 @@ func _update_timer_display() -> void:
 	detail_timer_progress.value = selected_mission.base_duration - selected_mission.time_remaining
 
 func _process(_delta: float) -> void:
+	# Update mission timer if detail panel is visible
 	if mission_detail_panel.visible and selected_mission and selected_mission.is_active:
 		_update_timer_display()
+	
+	# Update chaos displays periodically
+	_update_chaos_displays()
 
 func _on_detail_close_pressed() -> void:
 	mission_detail_panel.visible = false
@@ -534,7 +685,7 @@ func _on_detail_close_pressed() -> void:
 func _on_detail_start_pressed() -> void:
 	print("Detail start button pressed")
 	if selected_mission:
-		print("  Emitting mission_started signal for: %s" % selected_mission.mission_name)
+		print("  Emitting mission_started signal for: %s" % selected_mission.mission_name)
 		mission_started.emit(selected_mission)
 
 func close_detail_panel() -> void:
