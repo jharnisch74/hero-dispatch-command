@@ -1,5 +1,5 @@
 # res://scripts/game_manager.gd
-# REFACTORED VERSION - Uses data files for heroes and missions
+# Handles mission timeout and chaos system integration
 extends Node
 
 # Resources
@@ -34,6 +34,7 @@ signal money_changed(new_amount: int)
 signal fame_changed(new_amount: int)
 signal hero_updated(hero: Hero)
 signal mission_completed(mission: Mission, result: Dictionary)
+signal mission_expired(mission: Mission)
 signal heroes_changed()
 
 func _ready() -> void:
@@ -58,7 +59,41 @@ func _initialize_recruitment_system() -> void:
 func _process(delta: float) -> void:
 	_update_heroes(delta)
 	_update_active_missions(delta)
+	_update_available_missions_timeout(delta)
 	_update_mission_spawning(delta)
+
+func _update_available_missions_timeout(delta: float) -> void:
+	"""Check for missions that have expired"""
+	var expired_missions = []
+	
+	for mission in available_missions:
+		if mission.update_availability_timer(delta):
+			expired_missions.append(mission)
+	
+	# Handle expired missions
+	for mission in expired_missions:
+		_expire_mission(mission)
+
+func _expire_mission(mission: Mission) -> void:
+	"""Handle mission expiration (timeout)"""
+	print("⏰ MISSION EXPIRED: %s in %s" % [mission.mission_name, mission.zone])
+	
+	# Increase chaos in the zone
+	if chaos_system:
+		chaos_system.on_mission_expired(mission)
+	
+	# Remove from available missions
+	available_missions.erase(mission)
+	
+	# Emit signal
+	mission_expired.emit(mission)
+	
+	# Update status
+	var zone = mission.zone if mission.get("zone") else "downtown"
+	update_status("⏰ Mission EXPIRED: %s - Chaos rising in %s!" % [mission.mission_name, zone.capitalize()])
+	
+	# Spawn a new mission to replace it
+	_generate_new_mission()
 
 func _input(event: InputEvent) -> void:
 	# Debug hotkey: Press F9 to force reset all hero availability
@@ -259,8 +294,8 @@ func assign_hero_to_mission(hero: Hero, mission: Mission) -> bool:
 			update_status("❌ %s is already assigned to %s!" % [hero.hero_name, other_mission.mission_name])
 			return false
 	
-	if mission.is_active or mission.is_completed:
-		update_status("❌ Mission already started or completed!")
+	if mission.is_active or mission.is_completed or mission.is_expired:
+		update_status("❌ Mission already started, completed, or expired!")
 		return false
 	
 	if mission.assign_hero(hero.hero_id):
@@ -331,12 +366,16 @@ func _complete_mission(mission: Mission) -> void:
 		result.fame
 	)
 	
-	# Add chaos info to story message if chaos increased
-	if not result.success and chaos_system:
+	# Add chaos info to story message
+	if chaos_system:
 		var zone = mission.zone if mission.get("zone") else "downtown"
 		var chaos_level = chaos_system.get_chaos_level(zone)
 		var chaos_tier = chaos_system.get_chaos_tier(zone)
-		story_message += "\n\n🔥 Chaos in %s: %.0f%% (%s)" % [zone.capitalize(), chaos_level, chaos_tier]
+		
+		if result.success:
+			story_message += "\n\n✅ %s stabilized: %.0f%% chaos (%s)" % [zone.capitalize(), chaos_level, chaos_tier]
+		else:
+			story_message += "\n\n🔥 %s destabilized: %.0f%% chaos (%s)" % [zone.capitalize(), chaos_level, chaos_tier]
 	
 	if status_label:
 		status_label.text = story_message

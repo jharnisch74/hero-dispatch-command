@@ -7,7 +7,7 @@ var mission_id: String
 var mission_name: String
 var mission_emoji: String
 var description: String
-var zone: String = "downtown"  # NEW: For mission map placement
+var zone: String = "downtown"
 
 # Difficulty
 enum Difficulty {EASY, MEDIUM, HARD, EXTREME}
@@ -29,6 +29,11 @@ var base_duration: float
 var time_remaining: float = 0.0
 var is_active: bool = false
 var is_completed: bool = false
+
+# NEW: Mission availability timeout
+var availability_timeout: float = 60.0  # Missions expire after 60 seconds if not started
+var availability_timer: float = 0.0
+var is_expired: bool = false
 
 # Assigned heroes
 var assigned_hero_ids: Array[String] = []
@@ -54,6 +59,7 @@ func _set_difficulty_params() -> void:
 			exp_reward = 20
 			base_duration = 10.0
 			damage_risk = 0.1
+			availability_timeout = 90.0  # Easy missions last longer
 		Difficulty.MEDIUM:
 			required_power = 30
 			money_reward = randi_range(150, 250)
@@ -61,6 +67,7 @@ func _set_difficulty_params() -> void:
 			exp_reward = 50
 			base_duration = 20.0
 			damage_risk = 0.25
+			availability_timeout = 75.0
 		Difficulty.HARD:
 			required_power = 50
 			money_reward = randi_range(300, 500)
@@ -68,6 +75,7 @@ func _set_difficulty_params() -> void:
 			exp_reward = 100
 			base_duration = 35.0
 			damage_risk = 0.4
+			availability_timeout = 60.0
 		Difficulty.EXTREME:
 			required_power = 80
 			money_reward = randi_range(600, 1000)
@@ -75,9 +83,31 @@ func _set_difficulty_params() -> void:
 			exp_reward = 200
 			base_duration = 50.0
 			damage_risk = 0.6
+			availability_timeout = 45.0  # EXTREME missions expire quickly!
+
+func update_availability_timer(delta: float) -> bool:
+	"""Update the availability timer. Returns true if mission expired."""
+	if is_active or is_completed or is_expired:
+		return false
+	
+	availability_timer += delta
+	
+	if availability_timer >= availability_timeout:
+		is_expired = true
+		return true
+	
+	return false
+
+func get_time_until_expiry() -> float:
+	"""Returns seconds remaining before mission expires"""
+	return max(0.0, availability_timeout - availability_timer)
+
+func get_expiry_percent() -> float:
+	"""Returns percentage of time remaining (100% = just spawned, 0% = expired)"""
+	return (1.0 - (availability_timer / availability_timeout)) * 100.0
 
 func can_start() -> bool:
-	return assigned_hero_ids.size() >= min_heroes and not is_active and not is_completed
+	return assigned_hero_ids.size() >= min_heroes and not is_active and not is_completed and not is_expired
 
 func start_mission(heroes: Array[Hero]) -> void:
 	if not can_start():

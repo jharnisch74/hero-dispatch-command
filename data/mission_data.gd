@@ -352,89 +352,90 @@ static func get_success_story(mission_name: String, hero_names: String, success:
 			"success": "✅ %s navigated the rubble and rescued countless trapped citizens. (+$%d 💰 +%d ⭐)",
 			"failure": "❌ Rescue efforts were hampered by aftershocks. %s saved many lives but the damage is severe. (Partial: +$%d 💰 +%d ⭐)"
 		},
+# Replace the "# --- NEW MISSIONS STORIES ---" section (around line 280-350) with this:
+
 		# --- NEW MISSIONS STORIES ---
 		"Toxic Spill": {
-			"success": "✅ %s successfully contained the **toxic spill** and decontaminated the entire area. (+$%d 💰 +%d ⭐)",
-			"failure": "❌ The spill was contained, but some **long-term environmental damage** was done. (Partial: +$%d 💰 +%d ⭐)"
+			"success": "✅ %s successfully contained the toxic spill and decontaminated the entire area. (+$%d 💰 +%d ⭐)",
+			"failure": "❌ The spill was contained, but some long-term environmental damage was done. (Partial: +$%d 💰 +%d ⭐)"
 		},
 		"Kidnapping": {
-			"success": "✅ %s located and safely **rescued the victim**, apprehending the kidnappers without incident. (+$%d 💰 +%d ⭐)",
-			"failure": "❌ %s found the victim, but the kidnappers **escaped** into the city. (Partial: +$%d 💰 +%d ⭐)"
+			"success": "✅ %s located and safely rescued the victim, apprehending the kidnappers without incident. (+$%d 💰 +%d ⭐)",
+			"failure": "❌ %s found the victim, but the kidnappers escaped into the city. (Partial: +$%d 💰 +%d ⭐)"
 		},
 		"Looting Spree": {
-			"success": "✅ %s stopped the mass looting! Most **stolen goods were recovered** and order was restored. (+$%d 💰 +%d ⭐)",
-			"failure": "❌ The blackout made pursuit difficult. %s stopped the worst of it, but many **looters escaped**. (Partial: +$%d 💰 +%d ⭐)"
+			"success": "✅ %s stopped the mass looting! Most stolen goods were recovered and order was restored. (+$%d 💰 +%d ⭐)",
+			"failure": "❌ The blackout made pursuit difficult. %s stopped the worst of it, but many looters escaped. (Partial: +$%d 💰 +%d ⭐)"
 		},
 		"Power Grid Failure": {
-			"success": "✅ %s **repaired critical infrastructure** and restored power to the entire city. (+$%d 💰 +%d ⭐)",
-			"failure": "❌ Power was only restored partially. %s prevented a total system collapse but **repairs are ongoing**. (Partial: +$%d 💰 +%d ⭐)"
+			"success": "✅ %s repaired critical infrastructure and restored power to the entire city. (+$%d 💰 +%d ⭐)",
+			"failure": "❌ Power was only restored partially. %s prevented a total system collapse but repairs are ongoing. (Partial: +$%d 💰 +%d ⭐)"
 		},
 		"Giant Monster": {
-			"success": "✅ %s **defeated the colossal creature**, saving the city from catastrophic destruction! (+$%d 💰 +%d ⭐)",
-			"failure": "❌ The monster was **driven back**, but it caused heavy collateral damage before retreating. (Partial: +$%d 💰 +%d ⭐)"
+			"success": "✅ %s defeated the colossal creature, saving the city from catastrophic destruction! (+$%d 💰 +%d ⭐)",
+			"failure": "❌ The monster was driven back, but it caused heavy collateral damage before retreating. (Partial: +$%d 💰 +%d ⭐)"
 		},
 		"Subway Derailment": {
-			"success": "✅ %s quickly extracted **all passengers** from the wreck without major injury. (+$%d 💰 +%d ⭐)",
-			"failure": "❌ The **rescue was slow** due to the confined space. %s got most out safely, but with some delays. (Partial: +$%d 💰 +%d ⭐)"
+			"success": "✅ %s quickly extracted all passengers from the wreck without major injury. (+$%d 💰 +%d ⭐)",
+			"failure": "❌ The rescue was slow due to the confined space. %s got most out safely, but with some delays. (Partial: +$%d 💰 +%d ⭐)"
 		},
 		"Skydiving Mishap": {
-			"success": "✅ %s successfully **intercepted the skydiver** and brought them safely to the ground. (+$%d 💰 +%d ⭐)",
-			"failure": "❌ The skydiver was saved, but suffered a **minor injury** during the emergency landing. (Partial: +$%d 💰 +%d ⭐)"
+			"success": "✅ %s successfully intercepted the skydiver and brought them safely to the ground. (+$%d 💰 +%d ⭐)",
+			"failure": "❌ The skydiver was saved, but suffered a minor injury during the emergency landing. (Partial: +$%d 💰 +%d ⭐)"
 		},
 		"Data Recovery": {
-			"success": "✅ %s **recovered the crucial hard drive** from the volatile location just in time. (+$%d 💰 +%d ⭐)",
-			"failure": "❌ The data was recovered, but the drive was **partially corrupted** during extraction. (Partial: +$%d 💰 +%d ⭐)"
+			"success": "✅ %s recovered the crucial hard drive from the volatile location just in time. (+$%d 💰 +%d ⭐)",
+			"failure": "❌ The data was recovered, but the drive was partially corrupted during extraction. (Partial: +$%d 💰 +%d ⭐)"
 		},
 		"Animal Stampede": {
-			"success": "✅ %s successfully **herded all panicked zoo animals** back to safety. (+$%d 💰 +%d ⭐)",
-			"failure": "❌ A few animals **escaped the park perimeter**. %s will continue to assist with the search. (Partial: +$%d 💰 +%d ⭐)"
+			"success": "✅ %s successfully herded all panicked zoo animals back to safety. (+$%d 💰 +%d ⭐)",
+			"failure": "❌ A few animals escaped the park perimeter. %s will continue to assist with the search. (Partial: +$%d 💰 +%d ⭐)"
 		},
 		"Art Forgery Ring": {
-			"success": "✅ %s **exposed and dismantled** the massive art forgery operation. (+$%d 💰 +%d ⭐)",
-			"failure": "❌ The ringleaders **escaped capture**, but %s secured most of the evidence. (Partial: +$%d 💰 +%d ⭐)"
+			"success": "✅ %s exposed and dismantled the massive art forgery operation. (+$%d 💰 +%d ⭐)",
+			"failure": "❌ The ringleaders escaped capture, but %s secured most of the evidence. (Partial: +$%d 💰 +%d ⭐)"
 		},
 		"Asteroid Fragment": {
-			"success": "✅ %s safely **retrieved and secured** the dangerous meteorite fragment. (+$%d 💰 +%d ⭐)",
-			"failure": "❌ The fragment was secured, but its **energy caused a temporary city blackout**. (Partial: +$%d 💰 +%d ⭐)"
+			"success": "✅ %s safely retrieved and secured the dangerous meteorite fragment. (+$%d 💰 +%d ⭐)",
+			"failure": "❌ The fragment was secured, but its energy caused a temporary city blackout. (Partial: +$%d 💰 +%d ⭐)"
 		},
 		"Escaped Inmate": {
-			"success": "✅ %s successfully **tracked down and re-apprehended** the dangerous fugitive. (+$%d 💰 +%d ⭐)",
-			"failure": "❌ The inmate was sighted but **eluded capture**. The search continues. (Partial: +$%d 💰 +%d ⭐)"
+			"success": "✅ %s successfully tracked down and re-apprehended the dangerous fugitive. (+$%d 💰 +%d ⭐)",
+			"failure": "❌ The inmate was sighted but eluded capture. The search continues. (Partial: +$%d 💰 +%d ⭐)"
 		},
 		"Mad Scientist": {
-			"success": "✅ %s **stopped the rogue scientist** and neutralized the dangerous experiment! (+$%d 💰 +%d ⭐)",
-			"failure": "❌ The experiment was stopped, but not before causing a **minor instability** in the zone. (Partial: +$%d 💰 +%d ⭐)"
+			"success": "✅ %s stopped the rogue scientist and neutralized the dangerous experiment! (+$%d 💰 +%d ⭐)",
+			"failure": "❌ The experiment was stopped, but not before causing a minor instability in the zone. (Partial: +$%d 💰 +%d ⭐)"
 		},
 		"Water Main Burst": {
-			"success": "✅ %s **diverted the floodwaters** and rescued all citizens from the rising water. (+$%d 💰 +%d ⭐)",
-			"failure": "❌ The flooding caused **property damage** before %s could fully contain the break. (Partial: +$%d 💰 +%d ⭐)"
+			"success": "✅ %s diverted the floodwaters and rescued all citizens from the rising water. (+$%d 💰 +%d ⭐)",
+			"failure": "❌ The flooding caused property damage before %s could fully contain the break. (Partial: +$%d 💰 +%d ⭐)"
 		},
 		"Teleportation Mishap": {
-			"success": "✅ %s successfully **located and stabilized** all misplaced objects and people. (+$%d 💰 +%d ⭐)",
-			"failure": "❌ **One crucial object was permanently lost** in the interdimensional rift. (Partial: +$%d 💰 +%d ⭐)"
+			"success": "✅ %s successfully located and stabilized all misplaced objects and people. (+$%d 💰 +%d ⭐)",
+			"failure": "❌ One crucial object was permanently lost in the interdimensional rift. (Partial: +$%d 💰 +%d ⭐)"
 		},
 		"Drone Swarm": {
-			"success": "✅ %s **neutralized the aggressive drone swarm** and secured the area. (+$%d 💰 +%d ⭐)",
-			"failure": "❌ The drones caused **minor infrastructure damage** before being fully taken down. (Partial: +$%d 💰 +%d ⭐)"
+			"success": "✅ %s neutralized the aggressive drone swarm and secured the area. (+$%d 💰 +%d ⭐)",
+			"failure": "❌ The drones caused minor infrastructure damage before being fully taken down. (Partial: +$%d 💰 +%d ⭐)"
 		},
 		"Sinkhole Rescue": {
-			"success": "✅ %s **rescued all people** and stabilized the vehicles before the sinkhole grew larger. (+$%d 💰 +%d ⭐)",
-			"failure": "❌ **One vehicle was lost** into the sinkhole, but all lives were saved. (Partial: +$%d 💰 +%d ⭐)"
+			"success": "✅ %s rescued all people and stabilized the vehicles before the sinkhole grew larger. (+$%d 💰 +%d ⭐)",
+			"failure": "❌ One vehicle was lost into the sinkhole, but all lives were saved. (Partial: +$%d 💰 +%d ⭐)"
 		},
 		"Train Hijack": {
-			"success": "✅ %s stopped the runaway train, **subdued the hijackers**, and saved the passengers. (+$%d 💰 +%d ⭐)",
-			"failure": "❌ The train was stopped, but the **hijackers escaped** during the chaos. (Partial: +$%d 💰 +%d ⭐)"
+			"success": "✅ %s stopped the runaway train, subdued the hijackers, and saved the passengers. (+$%d 💰 +%d ⭐)",
+			"failure": "❌ The train was stopped, but the hijackers escaped during the chaos. (Partial: +$%d 💰 +%d ⭐)"
 		},
 		"Paranormal Event": {
-			"success": "✅ %s **investigated and successfully neutralized** the hostile spectral entity. (+$%d 💰 +%d ⭐)",
-			"failure": "❌ The entity was only **temporarily repelled**, and remains a future threat. (Partial: +$%d 💰 +%d ⭐)"
+			"success": "✅ %s investigated and successfully neutralized the hostile spectral entity. (+$%d 💰 +%d ⭐)",
+			"failure": "❌ The entity was only temporarily repelled, and remains a future threat. (Partial: +$%d 💰 +%d ⭐)"
 		},
 		"Drug Cartel Bust": {
-			"success": "✅ %s **dismantled the major drug operation** and arrested all cartel leaders. (+$%d 💰 +%d ⭐)",
-			"failure": "❌ The drug lab was shut down, but the **main cartel leader escaped** the city. (Partial: +$%d 💰 +%d ⭐)"
+			"success": "✅ %s dismantled the major drug operation and arrested all cartel leaders. (+$%d 💰 +%d ⭐)",
+			"failure": "❌ The drug lab was shut down, but the main cartel leader escaped the city. (Partial: +$%d 💰 +%d ⭐)"
 		}
 	}
-	
 	var story_key = "success" if success else "failure"
 	if stories.has(mission_name) and stories[mission_name].has(story_key):
 		return stories[mission_name][story_key] % [hero_names, money, fame]

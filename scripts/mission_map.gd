@@ -25,17 +25,12 @@ var detail_close_button: Button
 signal mission_clicked(mission: Variant)
 signal mission_started(mission: Variant)
 
-# Your final layout
-
 var city_zones: Dictionary = {
-	# TOP ROW: (No change)
 	"industrial": {"x": 0.20, "y": 0.25, "width": 0.40, "height": 0.50},  
 	"downtown": {"x": 0.55, "y": 0.25, "width": 0.30, "height": 0.50},   
 	"park": {"x": 0.85, "y": 0.25, "width": 0.30, "height": 0.50},
-   
-	# BOTTOM ROW: Waterfront (40%) + Residential (60%) = 100%
-	"waterfront": {"x": 0.20, "y": 0.75, "width": 0.40, "height": 0.50}, # Starts at 0.00, Ends at 0.40
-	"residential": {"x": 0.70, "y": 0.75, "width": 0.60, "height": 0.50} # Starts at 0.40, Ends at 1.00
+	"waterfront": {"x": 0.20, "y": 0.75, "width": 0.40, "height": 0.50},
+	"residential": {"x": 0.70, "y": 0.75, "width": 0.60, "height": 0.50}
 }
 
 func _ready() -> void:
@@ -45,7 +40,6 @@ func _ready() -> void:
 	size_flags_vertical = Control.SIZE_EXPAND_FILL
 	_create_map_ui()
 	
-	# Wait for layout to be ready
 	await get_tree().process_frame
 	await get_tree().process_frame
 	if map_canvas:
@@ -77,7 +71,6 @@ func refresh_missions() -> void:
 		print("  Not ready yet, skipping")
 		return
 	
-	# Make sure we have a valid size
 	if map_canvas.size.x <= 0 or map_canvas.size.y <= 0:
 		print("  Map canvas size invalid: %s, waiting..." % map_canvas.size)
 		await get_tree().process_frame
@@ -85,17 +78,17 @@ func refresh_missions() -> void:
 	
 	print("  Calling _refresh_all")
 	call_deferred("_refresh_all")
+	
+# Part 2 - Add after Part 1
 
 func _refresh_all() -> void:
 	await get_tree().process_frame
 	
 	print("MissionMap _refresh_all() called")
 	
-	# Store current canvas size to detect if it changed
 	var current_size = map_canvas.size
 	print("  Map canvas size: %s" % current_size)
 	
-	# Only clear and redraw zones if size changed significantly or zones don't exist
 	var need_redraw_zones = true
 	var first_zone = map_canvas.get_node_or_null("Zone_downtown")
 	if first_zone and abs(current_size.x - map_canvas.size.x) < 10:
@@ -103,24 +96,19 @@ func _refresh_all() -> void:
 		print("  Keeping existing zones and roads (size unchanged)")
 	
 	if need_redraw_zones:
-		# Remove old zones, chaos displays, and roads
 		for child in map_canvas.get_children():
-			if child.name.begins_with("Zone_") or child.name.begins_with("Border_") or child.name.begins_with("Label_") or child.name.begins_with("ChaosDisplay_") or child.name.begins_with("Road_") or child.name.begins_with("Bridge_"):
+			if child.name.begins_with("Zone_") or child.name.begins_with("Border_") or child.name.begins_with("Label_") or child.name.begins_with("ChaosDisplay_"):
 				child.queue_free()
 		
-		# Draw new zones and roads
 		_draw_zones(current_size.x, current_size.y)
 	else:
-		# Even if zones don't need redrawing, update chaos displays
 		_update_chaos_displays()
 	
-	# Always refresh mission markers
 	for marker in mission_markers.values():
 		marker.queue_free()
 	mission_markers.clear()
 	used_positions.clear()
 	
-	# Spawn mission markers
 	if game_manager:
 		var total_missions = game_manager.active_missions.size() + game_manager.available_missions.size()
 		print("  Creating markers for %d missions" % total_missions)
@@ -132,12 +120,10 @@ func _refresh_all() -> void:
 func _draw_zones(w: float, h: float) -> void:
 	print("  Drawing zones with size: %s x %s" % [w, h])
 	
-	# Get chaos info if available
 	var chaos_info = {}
 	if game_manager and game_manager.has_method("get_zone_chaos_info"):
 		chaos_info = game_manager.get_zone_chaos_info()
 	
-	# Draw zones first
 	for zone_name in city_zones:
 		var z: Dictionary = city_zones[zone_name]
 		var cx: float = z.x * w
@@ -153,7 +139,6 @@ func _draw_zones(w: float, h: float) -> void:
 		rect.size = Vector2(zw, zh)
 		rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		
-		# Base zone color
 		var base_color: Color
 		match zone_name:
 			"downtown":
@@ -169,7 +154,6 @@ func _draw_zones(w: float, h: float) -> void:
 			_:
 				base_color = Color(0.5, 0.5, 0.5, 0.5)
 		
-		# Tint zone with chaos color if chaos exists
 		if chaos_info.has(zone_name):
 			var chaos_level = chaos_info[zone_name].level
 			var chaos_color = chaos_info[zone_name].color
@@ -189,7 +173,6 @@ func _draw_zones(w: float, h: float) -> void:
 		border.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		map_canvas.add_child(border)
 		
-		# Zone label
 		var label := Label.new()
 		label.name = "Label_" + zone_name
 		label.text = zone_name.to_upper()
@@ -199,30 +182,21 @@ func _draw_zones(w: float, h: float) -> void:
 		label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		map_canvas.add_child(label)
 		
-		# Chaos display in zone
 		if chaos_info.has(zone_name):
 			_create_zone_chaos_display(zone_name, chaos_info[zone_name], Vector2(zx, zy), zw)
-	
-	# Draw road system on top
-	_draw_roads(w, h)
 
-func _draw_roads(w: float, h: float) -> void:
-	# ALL ROAD DRAWING LOGIC HAS BEEN REMOVED
-	pass
+# Part 3 - Add after Part 2
 
 func _create_zone_chaos_display(zone_name: String, chaos_data: Dictionary, zone_pos: Vector2, zone_width: float) -> void:
-	"""Create a chaos meter display within the zone"""
 	var chaos_level = chaos_data.level
 	var chaos_tier = chaos_data.tier
 	var chaos_color = chaos_data.color
 	
-	# Create a small panel for the chaos display
 	var panel := PanelContainer.new()
 	panel.name = "ChaosDisplay_" + zone_name
-	panel.position = Vector2(zone_pos.x + 20, zone_pos.y + 55)  # Below zone name
+	panel.position = Vector2(zone_pos.x + 20, zone_pos.y + 55)
 	panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	
-	# Style the panel
 	var panel_style := StyleBoxFlat.new()
 	panel_style.bg_color = Color(0, 0, 0, 0.7)
 	panel_style.set_corner_radius_all(5)
@@ -232,12 +206,10 @@ func _create_zone_chaos_display(zone_name: String, chaos_data: Dictionary, zone_
 	panel_style.content_margin_bottom = 5
 	panel.add_theme_stylebox_override("panel", panel_style)
 	
-	# VBox for chaos info
 	var vbox := VBoxContainer.new()
 	vbox.add_theme_constant_override("separation", 3)
 	panel.add_child(vbox)
 	
-	# Chaos tier label with emoji
 	var tier_label := Label.new()
 	var emoji = ""
 	match chaos_tier:
@@ -257,13 +229,11 @@ func _create_zone_chaos_display(zone_name: String, chaos_data: Dictionary, zone_
 	tier_label.add_theme_color_override("font_color", chaos_color)
 	vbox.add_child(tier_label)
 	
-	# Progress bar background
 	var bar_bg := ColorRect.new()
 	bar_bg.custom_minimum_size = Vector2(min(120, zone_width - 60), 12)
 	bar_bg.color = Color(0.2, 0.2, 0.2, 0.9)
 	vbox.add_child(bar_bg)
 	
-	# Progress bar fill
 	var bar_fill := ColorRect.new()
 	bar_fill.name = "ChaosBar_" + zone_name
 	var bar_width = (chaos_level / 100.0) * bar_bg.custom_minimum_size.x
@@ -273,7 +243,6 @@ func _create_zone_chaos_display(zone_name: String, chaos_data: Dictionary, zone_
 	bar_fill.position = Vector2(0, 0)
 	bar_bg.add_child(bar_fill)
 	
-	# Percentage label
 	var percent_label := Label.new()
 	percent_label.text = "%.0f%%" % chaos_level
 	percent_label.add_theme_font_size_override("font_size", 11)
@@ -281,10 +250,9 @@ func _create_zone_chaos_display(zone_name: String, chaos_data: Dictionary, zone_
 	vbox.add_child(percent_label)
 	
 	map_canvas.add_child(panel)
-	panel.z_index = 5  # Above zones but below mission markers
+	panel.z_index = 5
 
 func _update_chaos_displays() -> void:
-	"""Update existing chaos displays without redrawing entire zones"""
 	if not game_manager or not game_manager.has_method("get_zone_chaos_info"):
 		return
 	
@@ -300,7 +268,6 @@ func _update_chaos_displays() -> void:
 		var chaos_tier = chaos_data.tier
 		var chaos_color = chaos_data.color
 		
-		# Update tier label
 		var vbox = display.get_child(0)
 		if vbox:
 			var tier_label = vbox.get_child(0)
@@ -320,7 +287,6 @@ func _update_chaos_displays() -> void:
 				tier_label.text = emoji + chaos_tier
 				tier_label.add_theme_color_override("font_color", chaos_color)
 			
-			# Update progress bar
 			var bar_bg = vbox.get_child(1)
 			if bar_bg:
 				var bar_fill = bar_bg.get_node_or_null("ChaosBar_" + zone_name)
@@ -330,102 +296,23 @@ func _update_chaos_displays() -> void:
 					bar_fill.size = Vector2(bar_width, 12)
 					bar_fill.color = chaos_color
 			
-			# Update percentage
 			var percent_label = vbox.get_child(2)
 			if percent_label:
 				percent_label.text = "%.0f%%" % chaos_level
-
-func _draw_road_line(from: Vector2, to: Vector2, width: float, color: Color) -> void:
-	# Function is kept but unused by _draw_roads
-	var line := ColorRect.new()
-	line.name = "Road_" + str(randi())
-	line.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	line.color = color
-	
-	var length = from.distance_to(to)
-	var angle = from.angle_to_point(to)
-	
-	line.position = from
-	line.size = Vector2(length, width)
-	line.rotation = angle
-	line.pivot_offset = Vector2(0, width / 2)
-	line.z_index = 0
-	
-	map_canvas.add_child(line)
-
-func _draw_roundabout(center: Vector2, radius: float, color: Color, width: float) -> void:
-	# Function is kept but unused by _draw_roads
-	var segments = 32
-	for i in range(segments):
-		var angle1 = (i / float(segments)) * TAU
-		var angle2 = ((i + 1) / float(segments)) * TAU
-		
-		var p1 = center + Vector2(cos(angle1), sin(angle1)) * radius
-		var p2 = center + Vector2(cos(angle2), sin(angle2)) * radius
-		
-		var seg_line := ColorRect.new()
-		seg_line.name = "Road_Roundabout_" + str(i)
-		seg_line.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		seg_line.color = color
-		
-		var length = p1.distance_to(p2)
-		var seg_angle = p1.angle_to_point(p2)
-		
-		seg_line.position = p1
-		seg_line.size = Vector2(length, width)
-		seg_line.rotation = seg_angle
-		seg_line.pivot_offset = Vector2(0, width / 2)
-		seg_line.z_index = 0
-		
-		map_canvas.add_child(seg_line)
-
-func _draw_bridge(from: Vector2, to: Vector2, width: float) -> void:
-	# Function is kept but unused by _draw_roads
-	var bridge_base := ColorRect.new()
-	bridge_base.name = "Bridge_Base"
-	bridge_base.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	bridge_base.color = Color(0.55, 0.45, 0.35, 1.0)
-	
-	var length = from.distance_to(to)
-	var angle = from.angle_to_point(to)
-	
-	bridge_base.position = from
-	bridge_base.size = Vector2(length, width)
-	bridge_base.rotation = angle
-	bridge_base.pivot_offset = Vector2(0, width / 2)
-	bridge_base.z_index = 1
-	
-	map_canvas.add_child(bridge_base)
-	
-	var railing_top := ColorRect.new()
-	railing_top.name = "Bridge_Railing_Top"
-	railing_top.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	railing_top.color = Color(0.4, 0.35, 0.3, 1.0)
-	railing_top.position = from
-	railing_top.size = Vector2(length, 2)
-	railing_top.rotation = angle
-	railing_top.pivot_offset = Vector2(0, -width / 2)
-	railing_top.z_index = 2
-	map_canvas.add_child(railing_top)
-	
-	var railing_bottom := ColorRect.new()
-	railing_bottom.name = "Bridge_Railing_Bottom"
-	railing_bottom.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	railing_bottom.color = Color(0.4, 0.35, 0.3, 1.0)
-	railing_bottom.position = from
-	railing_bottom.size = Vector2(length, 2)
-	railing_bottom.rotation = angle
-	railing_bottom.pivot_offset = Vector2(0, width / 2 + 2)
-	railing_bottom.z_index = 2
-	map_canvas.add_child(railing_bottom)
+				
+			# Part 4 - Add after Part 3
 
 func _create_mission_marker(mission: Variant, active: bool) -> void:
 	print("    Creating marker for: %s" % mission.mission_name)
 	
+	var marker_container := Control.new()
+	marker_container.custom_minimum_size = Vector2(MISSION_ICON_SIZE, MISSION_ICON_SIZE + 20)
+	var pos := _get_mission_position(mission)
+	marker_container.position = pos - Vector2(MISSION_ICON_SIZE / 2, (MISSION_ICON_SIZE + 20) / 2)
+	
 	var marker := PanelContainer.new()
 	marker.custom_minimum_size = Vector2(MISSION_ICON_SIZE, MISSION_ICON_SIZE)
-	var pos := _get_mission_position(mission)
-	marker.position = pos - Vector2(MISSION_ICON_SIZE / 2, MISSION_ICON_SIZE / 2)
+	marker.position = Vector2(0, 0)
 	
 	var style := StyleBoxFlat.new()
 	style.set_corner_radius_all(MISSION_ICON_SIZE / 2)
@@ -450,27 +337,51 @@ func _create_mission_marker(mission: Variant, active: bool) -> void:
 	icon.add_theme_font_size_override("font_size", 32)
 	marker.add_child(icon)
 	
+	marker_container.add_child(marker)
+	
+	# Expiry timer label (only for available missions)
+	if not active and not mission.is_expired:
+		var timer_label := Label.new()
+		timer_label.name = "ExpiryTimer"
+		timer_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		timer_label.add_theme_font_size_override("font_size", 18)
+		timer_label.position = Vector2(0, MISSION_ICON_SIZE + 2)
+		timer_label.custom_minimum_size = Vector2(MISSION_ICON_SIZE, 18)
+		
+		var time_remaining = mission.get_time_until_expiry()
+		timer_label.text = "⏱️ %ds" % int(time_remaining)
+		
+		var expiry_percent = mission.get_expiry_percent()
+		if expiry_percent < 25:
+			timer_label.add_theme_color_override("font_color", Color("#ff3838"))
+		elif expiry_percent < 50:
+			timer_label.add_theme_color_override("font_color", Color("#ff8c42"))
+		else:
+			timer_label.add_theme_color_override("font_color", Color("#ffcc00"))
+		
+		marker_container.add_child(timer_label)
+	
 	if active:
 		var tween := create_tween()
 		tween.set_loops()
 		tween.tween_property(marker, "scale", Vector2(1.15, 1.15), 0.6)
 		tween.tween_property(marker, "scale", Vector2(1.0, 1.0), 0.6)
 	
-	marker.gui_input.connect(func(event):
+	marker_container.gui_input.connect(func(event):
 		if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
 			_on_marker_clicked(mission)
 	)
 	
-	marker.mouse_entered.connect(func(): 
+	marker_container.mouse_entered.connect(func(): 
 		marker.modulate = Color(1.3, 1.3, 1.3)
 	)
-	marker.mouse_exited.connect(func(): 
+	marker_container.mouse_exited.connect(func(): 
 		marker.modulate = Color.WHITE
 	)
 	
-	map_canvas.add_child(marker)
-	marker.z_index = 10
-	mission_markers[mission.mission_id] = marker
+	map_canvas.add_child(marker_container)
+	marker_container.z_index = 10
+	mission_markers[mission.mission_id] = marker_container
 
 func _get_mission_position(mission: Variant) -> Vector2:
 	if used_positions.has(mission.mission_id):
@@ -518,6 +429,8 @@ func _get_mission_position(mission: Variant) -> Vector2:
 	var fallback := Vector2(cx, cy)
 	used_positions[mission.mission_id] = fallback
 	return fallback
+
+# Part 5 - Add after Part 4
 
 func _create_detail_panel() -> void:
 	mission_detail_panel = PanelContainer.new()
@@ -625,6 +538,8 @@ func _on_marker_clicked(mission: Variant) -> void:
 	mission_detail_panel.position = Vector2(x, y)
 	mission_detail_panel.visible = true
 	_update_detail_panel()
+	
+# Part 6 - Add after Part 5 (FINAL PART)
 
 func _update_detail_panel() -> void:
 	if not selected_mission:
@@ -649,15 +564,50 @@ func _update_detail_panel() -> void:
 		detail_timer_progress.visible = true
 		detail_start_button.visible = false
 		_update_timer_display()
-	else:
+	elif selected_mission.is_expired:
 		detail_timer_label.visible = false
 		detail_timer_progress.visible = false
 		detail_start_button.visible = true
-		detail_start_button.disabled = not selected_mission.can_start()
-		detail_start_button.text = "START MISSION" if selected_mission.can_start() else "ASSIGN HEROES FIRST"
+		detail_start_button.disabled = true
+		detail_start_button.text = "MISSION EXPIRED"
+	else:
+		_update_expiry_display()
+
+func _update_expiry_display() -> void:
+	if not selected_mission or selected_mission.is_active or selected_mission.is_expired:
+		return
+	
+	var time_until_expiry = selected_mission.get_time_until_expiry()
+	var expiry_percent = selected_mission.get_expiry_percent()
+	
+	detail_timer_label.visible = true
+	detail_timer_label.text = "⏱️ Expires in: %ds" % int(time_until_expiry)
+	
+	if expiry_percent < 25:
+		detail_timer_label.add_theme_color_override("font_color", Color("#ff3838"))
+	elif expiry_percent < 50:
+		detail_timer_label.add_theme_color_override("font_color", Color("#ff8c42"))
+	else:
+		detail_timer_label.add_theme_color_override("font_color", Color("#ffcc00"))
+	
+	detail_timer_progress.visible = true
+	detail_timer_progress.max_value = selected_mission.availability_timeout
+	detail_timer_progress.value = selected_mission.availability_timer
+	
+	var fill_style = detail_timer_progress.get_theme_stylebox("fill")
+	if fill_style is StyleBoxFlat:
+		if expiry_percent < 25:
+			fill_style.bg_color = Color("#ff3838")
+		elif expiry_percent < 50:
+			fill_style.bg_color = Color("#ff8c42")
+		else:
+			fill_style.bg_color = Color("#ffcc00")
+	
+	detail_start_button.visible = true
+	detail_start_button.disabled = not selected_mission.can_start()
+	detail_start_button.text = "START MISSION" if selected_mission.can_start() else "ASSIGN HEROES FIRST"
 
 func refresh_detail_panel() -> void:
-	"""Public function to refresh the detail panel from outside"""
 	if mission_detail_panel and mission_detail_panel.visible:
 		_update_detail_panel()
 
@@ -671,11 +621,36 @@ func _update_timer_display() -> void:
 	detail_timer_progress.value = selected_mission.base_duration - selected_mission.time_remaining
 
 func _process(_delta: float) -> void:
-	# Update mission timer if detail panel is visible
-	if mission_detail_panel.visible and selected_mission and selected_mission.is_active:
-		_update_timer_display()
+	if mission_detail_panel.visible and selected_mission:
+		if selected_mission.is_active:
+			_update_timer_display()
+		elif not selected_mission.is_expired:
+			_update_expiry_display()
 	
-	# Update chaos displays periodically
+	# Update expiry timers on mission markers
+	for mission_id in mission_markers.keys():
+		var marker = mission_markers[mission_id]
+		var timer_label = marker.get_node_or_null("ExpiryTimer")
+		
+		if timer_label:
+			var mission = null
+			for m in game_manager.available_missions:
+				if m.mission_id == mission_id:
+					mission = m
+					break
+			
+			if mission and not mission.is_expired:
+				var time_remaining = mission.get_time_until_expiry()
+				timer_label.text = "⏱️ %ds" % int(time_remaining)
+				
+				var expiry_percent = mission.get_expiry_percent()
+				if expiry_percent < 25:
+					timer_label.add_theme_color_override("font_color", Color("#ff3838"))
+				elif expiry_percent < 50:
+					timer_label.add_theme_color_override("font_color", Color("#ff8c42"))
+				else:
+					timer_label.add_theme_color_override("font_color", Color("#ffcc00"))
+	
 	_update_chaos_displays()
 
 func _on_detail_close_pressed() -> void:

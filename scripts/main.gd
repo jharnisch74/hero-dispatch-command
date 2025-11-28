@@ -1,17 +1,5 @@
+# res://scripts/main.gd
 extends Control
-
-func _input(event: InputEvent) -> void:
-	# Debug hotkey: Press F9 to force reset all hero availability
-	if event.is_action_pressed("ui_cancel") and Input.is_key_pressed(KEY_F9):
-		game_manager.force_reset_all_heroes()
-		_refresh_hero_list(selected_mission)
-	
-	# Debug hotkey: Press F8 to delete save and restart
-	if Input.is_key_pressed(KEY_F8):
-		game_manager.delete_save_and_restart()
-		selected_mission = null
-		_refresh_hero_list()
-		mission_map.refresh_missions()# res://scripts/main.gd
 
 # UI Node References
 @onready var hero_list: VBoxContainer = $MainMargin/MainLayout/ContentSplit/HeroPanel/VBoxContainer/HeroScroll/HeroList
@@ -91,6 +79,7 @@ func _initialize_game_manager() -> void:
 	# Connect signals
 	game_manager.hero_updated.connect(_on_hero_updated)
 	game_manager.mission_completed.connect(_on_mission_completed)
+	game_manager.mission_expired.connect(_on_mission_expired)
 	game_manager.heroes_changed.connect(_on_heroes_changed)
 
 func _initialize_save_manager() -> void:
@@ -162,11 +151,27 @@ func _initial_ui_update() -> void:
 	await get_tree().process_frame
 	mission_map.refresh_missions()
 
+func _input(event: InputEvent) -> void:
+	# Debug hotkey: Press F9 to force reset all hero availability
+	if event.is_action_pressed("ui_cancel") and Input.is_key_pressed(KEY_F9):
+		game_manager.force_reset_all_heroes()
+		_refresh_hero_list(selected_mission)
+	
+	# Debug hotkey: Press F8 to delete save and restart
+	if Input.is_key_pressed(KEY_F8):
+		game_manager.delete_save_and_restart()
+		selected_mission = null
+		_refresh_hero_list()
+		mission_map.refresh_missions()
+
 func _process(_delta: float) -> void:
 	# Update timer display in mission detail panel
 	if mission_map and mission_map.mission_detail_panel and mission_map.mission_detail_panel.visible:
-		if mission_map.selected_mission and mission_map.selected_mission.is_active:
-			mission_map._update_timer_display()
+		if mission_map.selected_mission:
+			if mission_map.selected_mission.is_active:
+				mission_map._update_timer_display()
+			elif not mission_map.selected_mission.is_expired:
+				mission_map._update_expiry_display()
 
 func _update_hero_panel_title() -> void:
 	if selected_mission:
@@ -219,6 +224,12 @@ func _on_map_mission_clicked(mission: Mission) -> void:
 	
 	if mission.is_completed:
 		game_manager.update_status("✅ Mission already completed: %s" % mission.mission_name)
+		selected_mission = null
+		_refresh_hero_list()
+		return
+	
+	if mission.is_expired:
+		game_manager.update_status("⏰ Mission expired: %s" % mission.mission_name)
 		selected_mission = null
 		_refresh_hero_list()
 		return
@@ -286,6 +297,22 @@ func _on_mission_completed(_mission: Mission, _result: Dictionary) -> void:
 	
 	# Save after important events
 	save_manager.save_game()
+
+func _on_mission_expired(mission: Mission) -> void:
+	print("⏰ Mission expired in main: %s" % mission.mission_name)
+	
+	# If the expired mission was selected, clear selection
+	if selected_mission and selected_mission.mission_id == mission.mission_id:
+		selected_mission = null
+		_refresh_hero_list()
+	
+	# Refresh mission map
+	mission_map.refresh_missions()
+	mission_map.close_detail_panel()
+	
+	# Show notification
+	var zone = mission.zone if mission.get("zone") else "downtown"
+	game_manager.update_status("⏰ EXPIRED: %s - Chaos rising in %s!" % [mission.mission_name, zone.capitalize()])
 
 func _on_upgrade_button_pressed() -> void:
 	upgrade_panel.show_panel(game_manager)

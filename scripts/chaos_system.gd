@@ -18,9 +18,10 @@ const CHAOS_HIGH = 75.0
 const CHAOS_CRITICAL = 90.0
 
 # Chaos effects
-const CHAOS_DECAY_RATE = 2.0  # Points per minute when no failures
+const CHAOS_DECAY_RATE = 1.5  # Points per minute when no active missions in zone
 const CHAOS_MISSION_FAILURE_INCREASE = 15.0
-const CHAOS_MISSION_SUCCESS_DECREASE = 5.0
+const CHAOS_MISSION_SUCCESS_DECREASE = 8.0
+const CHAOS_MISSION_EXPIRED_INCREASE = 12.0  # When mission times out
 
 # Game manager reference
 var game_manager: Node
@@ -33,20 +34,62 @@ func _init(gm: Node = null):
 	game_manager = gm
 
 func _process(delta: float) -> void:
-	_decay_chaos(delta)
+	_decay_chaos_smart(delta)
 
-func _decay_chaos(delta: float) -> void:
-	"""Slowly reduce chaos over time"""
+func _decay_chaos_smart(delta: float) -> void:
+	"""Only decay chaos in zones with NO active missions"""
+	if not game_manager:
+		return
+	
+	# Count active missions per zone
+	var active_missions_by_zone = {}
+	for zone in zone_chaos.keys():
+		active_missions_by_zone[zone] = 0
+	
+	for mission in game_manager.active_missions:
+		var zone = mission.zone if mission.get("zone") else "downtown"
+		active_missions_by_zone[zone] += 1
+	
+	# Only decay zones with no active missions
 	var decay_amount = (CHAOS_DECAY_RATE / 60.0) * delta
 	
 	for zone in zone_chaos.keys():
-		if zone_chaos[zone] > 0:
+		if active_missions_by_zone[zone] == 0 and zone_chaos[zone] > 0:
 			var old_level = zone_chaos[zone]
 			zone_chaos[zone] = max(0.0, zone_chaos[zone] - decay_amount)
 			
 			if old_level != zone_chaos[zone]:
 				chaos_level_changed.emit(zone, zone_chaos[zone])
 				_check_threshold_crossing(zone, old_level, zone_chaos[zone])
+
+func on_mission_expired(mission: Mission) -> void:
+	"""Called when a mission expires (times out) - increases chaos"""
+	var zone = mission.zone if mission.get("zone") else "downtown"
+	
+	var old_level = zone_chaos[zone]
+	var increase = CHAOS_MISSION_EXPIRED_INCREASE
+	
+	# Scale increase by difficulty
+	match mission.difficulty:
+		Mission.Difficulty.EASY:
+			increase *= 0.7
+		Mission.Difficulty.MEDIUM:
+			increase *= 1.0
+		Mission.Difficulty.HARD:
+			increase *= 1.4
+		Mission.Difficulty.EXTREME:
+			increase *= 1.8
+	
+	zone_chaos[zone] = min(100.0, zone_chaos[zone] + increase)
+	
+	print("⏰ MISSION EXPIRED - CHAOS INCREASE in %s: %.1f -> %.1f (+%.1f)" % [zone, old_level, zone_chaos[zone], increase])
+	
+	chaos_level_changed.emit(zone, zone_chaos[zone])
+	_check_threshold_crossing(zone, old_level, zone_chaos[zone])
+	
+	# Check for crisis events
+	if zone_chaos[zone] >= CHAOS_CRITICAL:
+		_trigger_crisis_event(zone)
 
 func on_mission_failed(mission: Mission) -> void:
 	"""Called when a mission fails - increases chaos in that zone"""
@@ -68,7 +111,7 @@ func on_mission_failed(mission: Mission) -> void:
 	
 	zone_chaos[zone] = min(100.0, zone_chaos[zone] + increase)
 	
-	print("🔥 CHAOS INCREASE in %s: %.1f -> %.1f (+%.1f)" % [zone, old_level, zone_chaos[zone], increase])
+	print("🔥 MISSION FAILED - CHAOS INCREASE in %s: %.1f -> %.1f (+%.1f)" % [zone, old_level, zone_chaos[zone], increase])
 	
 	chaos_level_changed.emit(zone, zone_chaos[zone])
 	_check_threshold_crossing(zone, old_level, zone_chaos[zone])
@@ -84,10 +127,21 @@ func on_mission_success(mission: Mission) -> void:
 	var old_level = zone_chaos[zone]
 	var decrease = CHAOS_MISSION_SUCCESS_DECREASE
 	
+	# Scale decrease by difficulty (harder missions reduce more chaos)
+	match mission.difficulty:
+		Mission.Difficulty.EASY:
+			decrease *= 0.8
+		Mission.Difficulty.MEDIUM:
+			decrease *= 1.0
+		Mission.Difficulty.HARD:
+			decrease *= 1.2
+		Mission.Difficulty.EXTREME:
+			decrease *= 1.5
+	
 	zone_chaos[zone] = max(0.0, zone_chaos[zone] - decrease)
 	
 	if old_level != zone_chaos[zone]:
-		print("✅ CHAOS DECREASE in %s: %.1f -> %.1f (-%.1f)" % [zone, old_level, zone_chaos[zone], decrease])
+		print("✅ MISSION SUCCESS - CHAOS DECREASE in %s: %.1f -> %.1f (-%.1f)" % [zone, old_level, zone_chaos[zone], decrease])
 		chaos_level_changed.emit(zone, zone_chaos[zone])
 		_check_threshold_crossing(zone, old_level, zone_chaos[zone])
 
@@ -153,6 +207,7 @@ func _create_crisis_mission(zone: String, event_type: String) -> void:
 	mission.exp_reward = 300
 	mission.base_duration = 45.0
 	mission.damage_risk = 0.7
+	mission.availability_timeout = 30.0  # Crisis missions expire VERY quickly!
 	
 	var specs_array: Array[Hero.Specialty] = []
 	for spec in mission_data.specialties:
