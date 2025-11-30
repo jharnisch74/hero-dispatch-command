@@ -1,21 +1,12 @@
 # res://scripts/main.gd
+# Rapid Response system integrated
 extends Control
 
-# UI Node References
-@onready var hero_list: VBoxContainer = $MainMargin/MainLayout/ContentSplit/HeroPanel/VBoxContainer/HeroScroll/HeroList
-@onready var hero_panel_title: Label = $MainMargin/MainLayout/ContentSplit/HeroPanel/VBoxContainer/HeroPanelTitle
-@onready var mission_container: Control = $MainMargin/MainLayout/ContentSplit/MissionPanel/VBoxContainer/MissionMapContainer
-@onready var money_label: Label = $MainMargin/MainLayout/HeaderPanel/HBoxContainer/ResourceDisplay/MoneyLabel
-@onready var fame_label: Label = $MainMargin/MainLayout/HeaderPanel/HBoxContainer/ResourceDisplay/FameLabel
-@onready var status_label: Label = $MainMargin/MainLayout/BottomPanel/HBoxContainer/StatusLabel
-@onready var upgrade_button: Button = $MainMargin/MainLayout/BottomPanel/HBoxContainer/UpgradeButton
-
-# Recruitment Button (we'll add it to the scene)
-var recruit_button: Button
-
-# Scenes
-var hero_card_scene = preload("res://scenes/ui/hero_card.tscn")
-var upgrade_panel_scene = preload("res://scenes/ui/upgrade_panel.tscn")
+# UI Node References - will be created dynamically
+var money_label: Label
+var fame_label: Label
+var title_label: Label
+var content_container: Control
 
 # Game Manager
 var game_manager: Node
@@ -23,42 +14,103 @@ var game_manager: Node
 # Save Manager
 var save_manager: Node
 
-# Mission Map
-var mission_map: Control
+# Rapid Response System
+var rapid_manager: RapidResponseManager
+var rapid_ui: Control
 
-# Upgrade Panel
+# Upgrade and recruitment panels
 var upgrade_panel: CanvasLayer
-
-# Recruitment Panel
 var recruitment_panel: CanvasLayer
 
-# Currently selected mission for hero assignment
-var selected_mission: Mission = null
-
 func _ready() -> void:
+	_create_ui()
 	_initialize_game_manager()
 	_initialize_save_manager()
-	_initialize_mission_map()
-	_setup_upgrade_panel()
-	_setup_recruitment_panel()
-	_setup_ui_connections()
+	await _initialize_rapid_response()
+	_setup_upgrade_panel()  # No await needed now
+	_setup_recruitment_panel()  # No await needed now
 	
-	# Wait for UI to be laid out properly
-	await get_tree().process_frame
+	# Wait for UI to be laid out
 	await get_tree().process_frame
 	await get_tree().process_frame
 	
-	# Try to load save, if it fails, create new game
-	if not save_manager.load_game():
-		await _initial_ui_update()
-	else:
-		# Save was loaded, refresh UI
-		await _refresh_hero_list()
-		await get_tree().process_frame
-		mission_map.refresh_missions()
+	# Try to load save
+	#if not save_manager.load_game():
+	#	_initial_ui_update()
+	#else:
+	#	_refresh_ui()
+
+func _create_ui() -> void:
+	"""Create the UI dynamically"""
+	set_anchors_preset(PRESET_FULL_RECT)
+	
+	# Background
+	var bg := ColorRect.new()
+	bg.color = Color("#0f1624")
+	bg.set_anchors_preset(PRESET_FULL_RECT)
+	add_child(bg)
+	
+	# Main container
+	var margin := MarginContainer.new()
+	margin.name = "MainMargin"
+	margin.set_anchors_preset(PRESET_FULL_RECT)
+	add_child(margin)
+	
+	var vbox := VBoxContainer.new()
+	vbox.name = "MainLayout"
+	margin.add_child(vbox)
+	
+	# Header
+	var header := PanelContainer.new()
+	header.name = "HeaderPanel"
+	header.custom_minimum_size = Vector2(0, 70)
+	vbox.add_child(header)
+	
+	var header_style := StyleBoxFlat.new()
+	header_style.bg_color = Color("#16213e")
+	header_style.set_corner_radius_all(10)
+	header.add_theme_stylebox_override("panel", header_style)
+	
+	var header_hbox := HBoxContainer.new()
+	header.add_child(header_hbox)
+	
+	# Title
+	title_label = Label.new()
+	title_label.text = "⚡ RAPID RESPONSE"
+	title_label.add_theme_font_size_override("font_size", 28)
+	title_label.add_theme_color_override("font_color", Color("#00d9ff"))
+	title_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	title_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	title_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	header_hbox.add_child(title_label)
+	
+	var spacer := Control.new()
+	spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	header_hbox.add_child(spacer)
+	
+	# Resources
+	var resource_vbox := VBoxContainer.new()
+	header_hbox.add_child(resource_vbox)
+	
+	money_label = Label.new()
+	money_label.text = "💰 Money: $500"
+	money_label.add_theme_font_size_override("font_size", 18)
+	money_label.add_theme_color_override("font_color", Color("#4ecca3"))
+	resource_vbox.add_child(money_label)
+	
+	fame_label = Label.new()
+	fame_label.text = "⭐ Fame: 0"
+	fame_label.add_theme_font_size_override("font_size", 18)
+	fame_label.add_theme_color_override("font_color", Color("#ffd700"))
+	resource_vbox.add_child(fame_label)
+	
+	# Content container
+	content_container = Control.new()
+	content_container.name = "ContentContainer"
+	content_container.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	vbox.add_child(content_container)
 
 func _notification(what: int) -> void:
-	# Auto-save when closing the game
 	if what == NOTIFICATION_WM_CLOSE_REQUEST:
 		if save_manager:
 			save_manager.save_game()
@@ -67,259 +119,128 @@ func _notification(what: int) -> void:
 func _initialize_game_manager() -> void:
 	game_manager = Node.new()
 	game_manager.name = "GameManager"
-	game_manager.set_script(preload("res://scripts/game_manager.gd"))
+	game_manager.set_script(preload("res://scripts/game_manager_rapid.gd"))
 	add_child(game_manager)
 	
 	# Connect references
-	game_manager.hero_list_container = hero_list
 	game_manager.money_label = money_label
 	game_manager.fame_label = fame_label
-	game_manager.status_label = status_label
 	
 	# Connect signals
 	game_manager.hero_updated.connect(_on_hero_updated)
-	game_manager.mission_completed.connect(_on_mission_completed)
-	game_manager.mission_expired.connect(_on_mission_expired)
-	game_manager.heroes_changed.connect(_on_heroes_changed)
 
 func _initialize_save_manager() -> void:
 	save_manager = Node.new()
 	save_manager.name = "SaveManager"
-	save_manager.set_script(preload("res://scripts/save_manager.gd"))
+	save_manager.set_script(preload("res://scripts/save_manager_rapid.gd"))
 	add_child(save_manager)
 	
-	# Give save manager reference to game manager
 	save_manager.set_game_manager(game_manager)
 
-func _initialize_mission_map() -> void:
-	mission_map = Control.new()
-	mission_map.name = "MissionMap"
-	mission_map.set_script(preload("res://scripts/mission_map.gd"))
-	mission_container.add_child(mission_map)
+func _initialize_rapid_response() -> void:
+	# Create rapid response manager
+	rapid_manager = RapidResponseManager.new(game_manager)
+	rapid_manager.name = "RapidResponseManager"
+	add_child(rapid_manager)
 	
-	mission_map.setup(game_manager)
+	# Store reference in game manager
+	game_manager.rapid_manager = rapid_manager
 	
-	print("Connecting mission map signals...")
-	mission_map.mission_clicked.connect(_on_map_mission_clicked)
-	mission_map.mission_started.connect(_on_mission_start_requested)
+	# Wait a frame for manager to be ready
+	await get_tree().process_frame
+	
+	# Create UI
+	rapid_ui = Control.new()
+	rapid_ui.name = "RapidResponseUI"
+	rapid_ui.set_script(preload("res://scripts/rapid_response_ui.gd"))
+	content_container.add_child(rapid_ui)
+	
+	# Wait for UI to be in tree
+	await get_tree().process_frame
+	
+	# Setup UI
+	rapid_ui.setup(rapid_manager, game_manager)
 
 func _setup_upgrade_panel() -> void:
-	upgrade_panel = upgrade_panel_scene.instantiate()
-	add_child(upgrade_panel)
+	# Use call_deferred to avoid blocking
+	call_deferred("_load_upgrade_panel")
+
+func _load_upgrade_panel() -> void:
+	var upgrade_scene = load("res://scenes/ui/upgrade_panel.tscn")
+	if upgrade_scene:
+		upgrade_panel = upgrade_scene.instantiate()
+		add_child(upgrade_panel)
+	else:
+		print("Warning: upgrade_panel.tscn not found")
 
 func _setup_recruitment_panel() -> void:
+	# Use call_deferred to avoid blocking
+	call_deferred("_load_recruitment_panel")
+
+func _load_recruitment_panel() -> void:
 	recruitment_panel = CanvasLayer.new()
 	recruitment_panel.name = "RecruitmentPanel"
 	recruitment_panel.set_script(preload("res://scripts/recruitment_panel.gd"))
 	add_child(recruitment_panel)
 	
-	# Setup after it's in the tree
-	await get_tree().process_frame
-	recruitment_panel.setup(game_manager, game_manager.recruitment_system)
-
-func _setup_ui_connections() -> void:
-	upgrade_button.pressed.connect(_on_upgrade_button_pressed)
-	
-	# Create recruit button dynamically
-	var bottom_hbox = $MainMargin/MainLayout/BottomPanel/HBoxContainer
-	recruit_button = Button.new()
-	recruit_button.text = "🎰 RECRUIT HEROES"
-	recruit_button.custom_minimum_size = Vector2(200, 0)
-	recruit_button.add_theme_font_size_override("font_size", 18)
-	
-	var btn_style := StyleBoxFlat.new()
-	btn_style.bg_color = Color("#9c27b0")
-	btn_style.set_corner_radius_all(5)
-	recruit_button.add_theme_stylebox_override("normal", btn_style)
-	
-	var btn_hover := StyleBoxFlat.new()
-	btn_hover.bg_color = Color("#7b1fa2")
-	btn_hover.set_corner_radius_all(5)
-	recruit_button.add_theme_stylebox_override("hover", btn_hover)
-	
-	recruit_button.pressed.connect(_on_recruit_button_pressed)
-	
-	# Add after upgrade button
-	bottom_hbox.add_child(recruit_button)
-	bottom_hbox.move_child(recruit_button, 1)
+	# Setup after added to tree
+	if recruitment_panel.has_method("setup"):
+		recruitment_panel.setup(game_manager, game_manager.recruitment_system)
 
 func _initial_ui_update() -> void:
 	money_label.text = "💰 Money: $%d" % game_manager.money
 	fame_label.text = "⭐ Fame: %d" % game_manager.fame
-	_update_hero_panel_title()
-	await _refresh_hero_list()
-	await get_tree().process_frame
-	mission_map.refresh_missions()
 
-func _input(event: InputEvent) -> void:
-	# Debug hotkey: Press F9 to force reset all hero availability
-	if event.is_action_pressed("ui_cancel") and Input.is_key_pressed(KEY_F9):
-		game_manager.force_reset_all_heroes()
-		_refresh_hero_list(selected_mission)
-	
-	# Debug hotkey: Press F8 to delete save and restart
-	if Input.is_key_pressed(KEY_F8):
-		game_manager.delete_save_and_restart()
-		selected_mission = null
-		_refresh_hero_list()
-		mission_map.refresh_missions()
-
-func _process(_delta: float) -> void:
-	# Update timer display in mission detail panel
-	if mission_map and mission_map.mission_detail_panel and mission_map.mission_detail_panel.visible:
-		if mission_map.selected_mission:
-			if mission_map.selected_mission.is_active:
-				mission_map._update_timer_display()
-			elif not mission_map.selected_mission.is_expired:
-				mission_map._update_expiry_display()
-
-func _update_hero_panel_title() -> void:
-	if selected_mission:
-		hero_panel_title.text = "SELECT HEROES FOR:\n%s %s" % [selected_mission.mission_emoji, selected_mission.mission_name]
-		hero_panel_title.add_theme_color_override("font_color", Color("#ffcc00"))
-	else:
-		hero_panel_title.text = "YOUR HEROES"
-		hero_panel_title.add_theme_color_override("font_color", Color("#00d9ff"))
-
-func _refresh_hero_list(for_mission: Mission = null) -> void:
-	print("\n*** _refresh_hero_list called ***")
-	
-	# Clear existing cards
-	for child in hero_list.get_children():
-		child.queue_free()
-	
-	var mission_to_use = for_mission if for_mission else selected_mission
-	
-	# Update title
-	_update_hero_panel_title()
-	
-	# Create hero cards
-	var cards = []
-	for hero in game_manager.heroes:
-		var card = hero_card_scene.instantiate()
-		hero_list.add_child(card)
-		cards.append(card)
-		card.hero_selected.connect(_on_hero_selected)
-		card.hero_deselected.connect(_on_hero_deselected)
-	
-	# Wait one frame for all cards to be in tree, then setup
-	await get_tree().process_frame
-	
-	for i in range(cards.size()):
-		var card = cards[i]
-		var hero = game_manager.heroes[i]
-		card.setup(hero, mission_to_use, game_manager)
-
-func _on_map_mission_clicked(mission: Mission) -> void:
-	print("\n================================================================")
-	print("MAP MISSION CLICKED")
-	print("  Mission: %s" % mission.mission_name)
-	print("================================================================\n")
-	
-	if mission.is_active:
-		game_manager.update_status("⏱️ Mission in progress: %s" % mission.mission_name)
-		selected_mission = null
-		_refresh_hero_list()
-		return
-	
-	if mission.is_completed:
-		game_manager.update_status("✅ Mission already completed: %s" % mission.mission_name)
-		selected_mission = null
-		_refresh_hero_list()
-		return
-	
-	if mission.is_expired:
-		game_manager.update_status("⏰ Mission expired: %s" % mission.mission_name)
-		selected_mission = null
-		_refresh_hero_list()
-		return
-	
-	# Mission is available for assignment
-	selected_mission = mission
-	
-	# Refresh hero list
-	_refresh_hero_list(mission)
-	
-	var assigned_count = mission.assigned_hero_ids.size()
-	var max_heroes = mission.max_heroes
-	
-	if assigned_count > 0:
-		game_manager.update_status("📋 %s - %d/%d heroes assigned. Select more or start mission!" % [mission.mission_name, assigned_count, max_heroes])
-	else:
-		game_manager.update_status("📋 Mission selected: %s - Select up to %d heroes!" % [mission.mission_name, max_heroes])
-
-func _on_hero_selected(hero: Hero, mission: Mission) -> void:
-	print("🦸 Hero selected: %s for mission: %s" % [hero.hero_name, mission.mission_name])
-	
-	if game_manager.assign_hero_to_mission(hero, mission):
-		_refresh_hero_list(mission)
-		mission_map.refresh_missions()
-		mission_map.refresh_detail_panel()
-		
-		var assigned_count = mission.assigned_hero_ids.size()
-		game_manager.update_status("✅ %s assigned! (%d/%d heroes)" % [hero.hero_name, assigned_count, mission.max_heroes])
-	else:
-		_refresh_hero_list(mission)
-
-func _on_hero_deselected(hero: Hero, mission: Mission) -> void:
-	print("🔄 Hero deselected: %s from mission: %s" % [hero.hero_name, mission.mission_name])
-	
-	if game_manager.unassign_hero_from_mission(hero, mission):
-		_refresh_hero_list(mission)
-		mission_map.refresh_missions()
-		mission_map.refresh_detail_panel()
-		
-		var assigned_count = mission.assigned_hero_ids.size()
-		game_manager.update_status("🔄 %s removed (%d/%d heroes)" % [hero.hero_name, assigned_count, mission.max_heroes])
-
-func _on_mission_start_requested(mission: Mission) -> void:
-	print("🚀 Starting mission: %s" % mission.mission_name)
-	
-	if game_manager.start_mission(mission):
-		selected_mission = null
-		_refresh_hero_list()
-		mission_map.refresh_missions()
-		mission_map.close_detail_panel()
-	else:
-		_refresh_hero_list(mission)
+func _refresh_ui() -> void:
+	money_label.text = "💰 Money: $%d" % game_manager.money
+	fame_label.text = "⭐ Fame: %d" % game_manager.fame
 
 func _on_hero_updated(_hero: Hero) -> void:
-	# Only refresh periodically, not every frame
+	# Heroes updated, refresh UI if needed
 	pass
 
-func _on_mission_completed(_mission: Mission, _result: Dictionary) -> void:
-	# Clear selection if the completed mission was selected
-	if selected_mission and selected_mission.mission_id == _mission.mission_id:
-		selected_mission = null
-	
-	_refresh_hero_list()
-	mission_map.refresh_missions()
-	
-	# Save after important events
-	save_manager.save_game()
+func _input(event: InputEvent) -> void:
+	# Debug hotkeys
+	if event.is_action_pressed("ui_cancel"):
+		if Input.is_key_pressed(KEY_F9):
+			_debug_reset_heroes()
+		elif Input.is_key_pressed(KEY_F8):
+			_debug_delete_save()
+		elif Input.is_key_pressed(KEY_F7):
+			_show_upgrade_panel()
+		elif Input.is_key_pressed(KEY_F6):
+			_show_recruitment_panel()
 
-func _on_mission_expired(mission: Mission) -> void:
-	print("⏰ Mission expired in main: %s" % mission.mission_name)
+func _debug_reset_heroes() -> void:
+	print("🔧 RESETTING ALL HEROES")
+	for hero in game_manager.heroes:
+		hero.is_on_mission = false
+		hero.is_recovering = false
+		hero.recovery_time_remaining = 0.0
+		hero.current_mission_id = ""
+		hero.current_health = hero.max_health
+		hero.current_stamina = hero.max_stamina
 	
-	# If the expired mission was selected, clear selection
-	if selected_mission and selected_mission.mission_id == mission.mission_id:
-		selected_mission = null
-		_refresh_hero_list()
+	if rapid_manager:
+		for hero_id in rapid_manager.hero_energy.keys():
+			rapid_manager.hero_energy[hero_id] = 100.0
 	
-	# Refresh mission map
-	mission_map.refresh_missions()
-	mission_map.close_detail_panel()
+	print("  ✅ All heroes reset!")
+
+func _debug_delete_save() -> void:
+	print("🗑️ DELETING SAVE FILE")
+	const SAVE_PATH = "user://hero_dispatch_save_rapid.json"
+	if FileAccess.file_exists(SAVE_PATH):
+		DirAccess.remove_absolute(SAVE_PATH)
+		print("  ✅ Save deleted")
 	
-	# Show notification
-	var zone = mission.zone if mission.get("zone") else "downtown"
-	game_manager.update_status("⏰ EXPIRED: %s - Chaos rising in %s!" % [mission.mission_name, zone.capitalize()])
+	# Reload
+	get_tree().reload_current_scene()
 
-func _on_upgrade_button_pressed() -> void:
-	upgrade_panel.show_panel(game_manager)
+func _show_upgrade_panel() -> void:
+	if upgrade_panel:
+		upgrade_panel.show_panel(game_manager)
 
-func _on_recruit_button_pressed() -> void:
-	recruitment_panel.show_panel()
-
-func _on_heroes_changed() -> void:
-	# Refresh hero list when new heroes are recruited
-	_refresh_hero_list(selected_mission)
+func _show_recruitment_panel() -> void:
+	if recruitment_panel:
+		recruitment_panel.show_panel()

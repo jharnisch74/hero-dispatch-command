@@ -1,0 +1,84 @@
+[gd_scene load_steps=3 format=3 uid="uid://rapid_main_scene"]
+
+[ext_resource type="Script" path="res://scripts/main.gd" id="1_main"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_header"]
+bg_color = Color(0.08627451, 0.12941177, 0.24313726, 1)
+corner_radius_top_left = 10
+corner_radius_top_right = 10
+corner_radius_bottom_right = 10
+corner_radius_bottom_left = 10
+
+[node name="Main" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_main")
+
+[node name="Background" type="ColorRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0.0588235, 0.0862745, 0.141176, 1)
+
+[node name="MainMargin" type="MarginContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/margin_left = 0
+theme_override_constants/margin_top = 0
+theme_override_constants/margin_right = 0
+theme_override_constants/margin_bottom = 0
+
+[node name="MainLayout" type="VBoxContainer" parent="MainMargin"]
+layout_mode = 2
+theme_override_constants/separation = 0
+
+[node name="HeaderPanel" type="PanelContainer" parent="MainMargin/MainLayout"]
+custom_minimum_size = Vector2(0, 70)
+layout_mode = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_header")
+
+[node name="HBoxContainer" type="HBoxContainer" parent="MainMargin/MainLayout/HeaderPanel"]
+layout_mode = 2
+
+[node name="TitleLabel" type="Label" parent="MainMargin/MainLayout/HeaderPanel/HBoxContainer"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_colors/font_color = Color(0, 0.8509804, 1, 1)
+theme_override_font_sizes/font_size = 28
+text = "⚡ RAPID RESPONSE"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="Spacer" type="Control" parent="MainMargin/MainLayout/HeaderPanel/HBoxContainer"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="ResourceDisplay" type="VBoxContainer" parent="MainMargin/MainLayout/HeaderPanel/HBoxContainer"]
+layout_mode = 2
+
+[node name="MoneyLabel" type="Label" parent="MainMargin/MainLayout/HeaderPanel/HBoxContainer/ResourceDisplay"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.30588236, 0.8, 0.6392157, 1)
+theme_override_font_sizes/font_size = 18
+text = "💰 Money: $500"
+
+[node name="FameLabel" type="Label" parent="MainMargin/MainLayout/HeaderPanel/HBoxContainer/ResourceDisplay"]
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 0.84313726, 0, 1)
+theme_override_font_sizes/font_size = 18
+text = "⭐ Fame: 0"
+
+[node name="ContentContainer" type="Control" parent="MainMargin/MainLayout"]
+layout_mode = 2
+size_flags_vertical = 3
