@@ -1,5 +1,5 @@
 # res://scripts/game_manager.gd
-# Handles mission timeout and chaos system integration
+# Handles mission timeout and chaos system integration with DAY SYSTEM
 extends Node
 
 # Resources
@@ -13,14 +13,11 @@ var available_missions: Array[Mission] = []
 
 # Mission generation
 var mission_counter: int = 0
-var next_mission_spawn_time: float = 5.0
-var mission_spawn_timer: float = 0.0
 
-# Chaos System
+# Systems
 var chaos_system: ChaosSystem
-
-# Recruitment System
 var recruitment_system: RecruitmentSystem
+var day_manager: DayManager
 
 # UI References (set by Main scene)
 var hero_list_container: VBoxContainer
@@ -36,12 +33,15 @@ signal hero_updated(hero: Hero)
 signal mission_completed(mission: Mission, result: Dictionary)
 signal mission_expired(mission: Mission)
 signal heroes_changed()
+signal day_started(day_number: int)
+signal day_ended(day_number: int)
 
 func _ready() -> void:
 	_initialize_chaos_system()
 	_initialize_recruitment_system()
+	_initialize_day_manager()
 	_initialize_starting_heroes()
-	_spawn_initial_missions()
+	# Don't spawn initial missions - day system will handle it
 
 func _initialize_chaos_system() -> void:
 	chaos_system = ChaosSystem.new(self)
@@ -56,108 +56,36 @@ func _initialize_recruitment_system() -> void:
 	recruitment_system = RecruitmentSystem.new(self)
 	add_child(recruitment_system)
 
+func _initialize_day_manager() -> void:
+	day_manager = DayManager.new(self)
+	add_child(day_manager)
+	
+	# Connect day signals
+	day_manager.day_started.connect(_on_day_started)
+	day_manager.day_ended.connect(_on_day_ended)
+	day_manager.zone_selected.connect(_on_zone_selected)
+	day_manager.passive_chaos_increased.connect(_on_passive_chaos_increased)
+
 func _process(delta: float) -> void:
 	_update_heroes(delta)
 	_update_active_missions(delta)
-	_update_available_missions_timeout(delta)
-	_update_mission_spawning(delta)
+	# No more auto-spawning missions or timeouts - day system handles it
 
-func _update_available_missions_timeout(delta: float) -> void:
-	"""Check for missions that have expired"""
-	var expired_missions = []
-	
-	for mission in available_missions:
-		if mission.update_availability_timer(delta):
-			expired_missions.append(mission)
-	
-	# Handle expired missions
-	for mission in expired_missions:
-		_expire_mission(mission)
-
-func _expire_mission(mission: Mission) -> void:
-	"""Handle mission expiration (timeout)"""
-	print("⏰ MISSION EXPIRED: %s in %s" % [mission.mission_name, mission.zone])
-	
-	# Increase chaos in the zone
-	if chaos_system:
-		chaos_system.on_mission_expired(mission)
-	
-	# Remove from available missions
-	available_missions.erase(mission)
-	
-	# Emit signal
-	mission_expired.emit(mission)
-	
-	# Update status
-	var zone = mission.zone if mission.get("zone") else "downtown"
-	update_status("⏰ Mission EXPIRED: %s - Chaos rising in %s!" % [mission.mission_name, zone.capitalize()])
-	
-	# Spawn a new mission to replace it
-	_generate_new_mission()
-
-func _input(event: InputEvent) -> void:
-	# Debug hotkey: Press F9 to force reset all hero availability
-	if event.is_action_pressed("ui_cancel") and Input.is_key_pressed(KEY_F9):
-		force_reset_all_heroes()
-	
-	# Debug hotkey: Press F8 to delete save and restart
-	if Input.is_key_pressed(KEY_F8):
-		delete_save_and_restart()
-
-func force_reset_all_heroes() -> void:
-	"""Debug function to force reset all heroes to available state"""
-	print("🔧 FORCING RESET OF ALL HEROES")
+func _update_heroes(delta: float) -> void:
 	for hero in heroes:
-		hero.is_on_mission = false
-		hero.is_recovering = false
-		hero.recovery_time_remaining = 0.0
-		hero.current_mission_id = ""
-		hero.current_health = hero.max_health
-		hero.current_stamina = hero.max_stamina
-		print("  ✅ Reset: %s" % hero.hero_name)
-	
-	# Also clear any stuck mission assignments
-	for mission in available_missions:
-		mission.assigned_hero_ids.clear()
-	
-	update_status("🔧 All heroes forcibly reset to available!")
+		hero.update_recovery(delta)
+		hero.regen_stamina(delta)
+		hero_updated.emit(hero)
 
-func delete_save_and_restart() -> void:
-	"""Debug function to delete save file and restart with fresh data"""
-	print("🗑️ DELETING SAVE FILE AND RESTARTING...")
-	const SAVE_PATH = "user://hero_dispatch_save.json"
-	if FileAccess.file_exists(SAVE_PATH):
-		DirAccess.remove_absolute(SAVE_PATH)
-		print("  ✅ Save file deleted")
+func _update_active_missions(delta: float) -> void:
+	var completed_missions = []
 	
-	# Clear current data
-	heroes.clear()
-	available_missions.clear()
-	active_missions.clear()
-	money = 500
-	fame = 0
-	mission_counter = 0
+	for mission in active_missions:
+		if mission.update_mission(delta):
+			completed_missions.append(mission)
 	
-	# Reset chaos system
-	if chaos_system:
-		chaos_system.reset()
-	
-	# Reset recruitment system
-	if recruitment_system:
-		recruitment_system.reset()
-	
-	# Reinitialize
-	_initialize_starting_heroes()
-	_spawn_initial_missions()
-	
-	# Update UI
-	if money_label:
-		money_label.text = "💰 Money: $%d" % money
-	if fame_label:
-		fame_label.text = "⭐ Fame: %d" % fame
-	
-	update_status("🗑️ Save deleted! Fresh start with 3 heroes!")
-	print("  ✅ Game restarted with %d heroes" % heroes.size())
+	for mission in completed_missions:
+		_complete_mission(mission)
 
 func _initialize_starting_heroes() -> void:
 	# Only initialize if we don't already have heroes (fresh start)
@@ -189,90 +117,109 @@ func _initialize_starting_heroes() -> void:
 		heroes.append(hero)
 		print("  Created hero: %s" % hero.hero_name)
 
-func _spawn_initial_missions() -> void:
-	for i in range(3):
-		_generate_new_mission()
+# DAY SYSTEM INTEGRATION
+func start_new_day(zone_name: String) -> void:
+	"""Called when player selects a zone to start the day"""
+	day_manager.start_day(zone_name)
 
-func _update_heroes(delta: float) -> void:
-	for hero in heroes:
-		hero.update_recovery(delta)
-		hero.regen_stamina(delta)
-		hero_updated.emit(hero)
+func end_current_day() -> void:
+	"""Called when player ends the day"""
+	day_manager.end_day()
 
-func _update_active_missions(delta: float) -> void:
-	var completed_missions = []
+func _on_day_started(day_number: int) -> void:
+	"""Called when a new day starts"""
+	print("🌅 Day %d started!" % day_number)
+	day_started.emit(day_number)
 	
-	for mission in active_missions:
-		if mission.update_mission(delta):
-			completed_missions.append(mission)
-	
-	for mission in completed_missions:
-		_complete_mission(mission)
+	# Update UI
+	if status_label:
+		status_label.text = "🌅 Day %d - Focus Zone: %s" % [day_number, day_manager.active_zone.capitalize()]
 
-func _update_mission_spawning(delta: float) -> void:
-	mission_spawn_timer += delta
-	
-	if mission_spawn_timer >= next_mission_spawn_time:
-		mission_spawn_timer = 0.0
-		next_mission_spawn_time = randf_range(8.0, 15.0)
-		
-		if available_missions.size() < 6:
-			_generate_new_mission()
+func _on_day_ended(day_number: int) -> void:
+	"""Called when a day ends"""
+	print("🌙 Day %d ended!" % day_number)
+	day_ended.emit(day_number)
 
-func _generate_new_mission() -> void:
-	mission_counter += 1
+func _on_zone_selected(zone_name: String) -> void:
+	"""Called when player selects a zone"""
+	print("📍 Zone selected: %s" % zone_name)
+
+func _on_passive_chaos_increased(zone_name: String, amount: float) -> void:
+	"""Called when a neglected zone's chaos increases"""
+	print("⚠️ %s chaos increased by %.1f (passive)" % [zone_name, amount])
+
+func _complete_mission(mission: Mission) -> void:
+	var result = mission.complete_mission()
 	
-	var mission_templates = MissionData.get_mission_templates()
+	# Update chaos system based on mission result
+	if chaos_system:
+		if result.success:
+			chaos_system.on_mission_success(mission)
+		else:
+			chaos_system.on_mission_failed(mission)
 	
-	# Weight difficulties based on current fame
-	var difficulty_weights = []
-	if fame < 50:
-		difficulty_weights = [0.5, 0.3, 0.15, 0.05]
-	elif fame < 150:
-		difficulty_weights = [0.3, 0.4, 0.2, 0.1]
-	elif fame < 300:
-		difficulty_weights = [0.2, 0.3, 0.35, 0.15]
-	else:
-		difficulty_weights = [0.1, 0.25, 0.4, 0.25]
+	# Update day manager
+	if day_manager:
+		day_manager.on_mission_completed(mission)
 	
-	var template = mission_templates[randi() % mission_templates.size()]
-	var difficulty = _pick_weighted_difficulty(difficulty_weights)
+	add_money(result.money)
+	add_fame(result.fame)
 	
-	var mission = Mission.new(
-		"mission_" + str(mission_counter),
-		template.name,
-		template.emoji,
-		template.description,
-		difficulty
+	var hero_names = []
+	for hero_id in result.hero_ids:
+		var hero = get_hero_by_id(hero_id)
+		if hero:
+			hero_names.append(hero.hero_name)
+			hero.is_on_mission = false
+			hero.current_mission_id = ""
+			hero.add_experience(result.exp)
+			
+			if randf() < mission.damage_risk:
+				var damage = randf_range(10, 30)
+				hero.take_damage(damage)
+	
+	var heroes_text = _format_hero_names(hero_names)
+	var story_message = MissionData.get_success_story(
+		mission.mission_name,
+		heroes_text,
+		result.success,
+		result.money,
+		result.fame
 	)
 	
-	# Set specialties
-	var specs_array: Array[Hero.Specialty] = []
-	for spec in template.specialties:
-		specs_array.append(spec)
-	mission.preferred_specialties = specs_array
-	
-	# Set zone (will be used by mission_map)
-	mission.zone = template.get("zone", "downtown")
-	
-	mission.max_heroes = 1 if difficulty == Mission.Difficulty.EASY else (3 if difficulty == Mission.Difficulty.EXTREME else 2)
-	
-	# Apply chaos effects to the mission
+	# Add chaos info to story message
 	if chaos_system:
-		chaos_system.apply_chaos_to_mission(mission)
+		var zone = mission.zone if mission.get("zone") else "downtown"
+		var chaos_level = chaos_system.get_chaos_level(zone)
+		var chaos_tier = chaos_system.get_chaos_tier(zone)
+		
+		if result.success:
+			story_message += "\n\n✅ %s stabilized: %.0f%% chaos (%s)" % [zone.capitalize(), chaos_level, chaos_tier]
+		else:
+			story_message += "\n\n🔥 %s destabilized: %.0f%% chaos (%s)" % [zone.capitalize(), chaos_level, chaos_tier]
 	
-	available_missions.append(mission)
+	# Add day progress
+	if day_manager and day_manager.day_in_progress:
+		var progress = day_manager.get_day_progress()
+		story_message += "\n\n📊 Day Progress: %d/%d missions" % [progress.missions_completed, progress.missions_total]
+	
+	if status_label:
+		status_label.text = story_message
+	
+	print("=== MISSION COMPLETE ===")
+	print(story_message)
+	print("=======================")
+	
+	mission_completed.emit(mission, result)
+	active_missions.erase(mission)
 
-func _pick_weighted_difficulty(weights: Array) -> Mission.Difficulty:
-	var roll = randf()
-	var cumulative = 0.0
-	
-	for i in range(weights.size()):
-		cumulative += weights[i]
-		if roll < cumulative:
-			return i as Mission.Difficulty
-	
-	return Mission.Difficulty.EASY
+func _format_hero_names(hero_names: Array) -> String:
+	if hero_names.size() == 1:
+		return hero_names[0]
+	elif hero_names.size() == 2:
+		return hero_names[0] + " and " + hero_names[1]
+	else:
+		return ", ".join(hero_names.slice(0, -1)) + ", and " + hero_names[-1]
 
 func assign_hero_to_mission(hero: Hero, mission: Mission) -> bool:
 	if not hero.is_available():
@@ -330,70 +277,6 @@ func start_mission(mission: Mission) -> bool:
 	
 	update_status("🚀 Mission started: %s" % mission.mission_name)
 	return true
-
-func _complete_mission(mission: Mission) -> void:
-	var result = mission.complete_mission()
-	
-	# Update chaos system based on mission result
-	if chaos_system:
-		if result.success:
-			chaos_system.on_mission_success(mission)
-		else:
-			chaos_system.on_mission_failed(mission)
-	
-	add_money(result.money)
-	add_fame(result.fame)
-	
-	var hero_names = []
-	for hero_id in result.hero_ids:
-		var hero = get_hero_by_id(hero_id)
-		if hero:
-			hero_names.append(hero.hero_name)
-			hero.is_on_mission = false
-			hero.current_mission_id = ""
-			hero.add_experience(result.exp)
-			
-			if randf() < mission.damage_risk:
-				var damage = randf_range(10, 30)
-				hero.take_damage(damage)
-	
-	var heroes_text = _format_hero_names(hero_names)
-	var story_message = MissionData.get_success_story(
-		mission.mission_name,
-		heroes_text,
-		result.success,
-		result.money,
-		result.fame
-	)
-	
-	# Add chaos info to story message
-	if chaos_system:
-		var zone = mission.zone if mission.get("zone") else "downtown"
-		var chaos_level = chaos_system.get_chaos_level(zone)
-		var chaos_tier = chaos_system.get_chaos_tier(zone)
-		
-		if result.success:
-			story_message += "\n\n✅ %s stabilized: %.0f%% chaos (%s)" % [zone.capitalize(), chaos_level, chaos_tier]
-		else:
-			story_message += "\n\n🔥 %s destabilized: %.0f%% chaos (%s)" % [zone.capitalize(), chaos_level, chaos_tier]
-	
-	if status_label:
-		status_label.text = story_message
-	
-	print("=== MISSION COMPLETE ===")
-	print(story_message)
-	print("=======================")
-	
-	mission_completed.emit(mission, result)
-	active_missions.erase(mission)
-
-func _format_hero_names(hero_names: Array) -> String:
-	if hero_names.size() == 1:
-		return hero_names[0]
-	elif hero_names.size() == 2:
-		return hero_names[0] + " and " + hero_names[1]
-	else:
-		return ", ".join(hero_names.slice(0, -1)) + ", and " + hero_names[-1]
 
 func get_hero_by_id(id: String) -> Hero:
 	for hero in heroes:

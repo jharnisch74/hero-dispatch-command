@@ -11,8 +11,14 @@ config_version=5
 [application]
 
 config/name="Hero Dispatch Command"
-run/main_scene="uid://bge50pg6dll6h"
+run/main_scene="uid://qph4s630vob8"
 config/features=PackedStringArray("4.5", "Forward Plus")
+
+[display]
+
+window/size/viewport_width=720
+window/size/viewport_height=1280
+window/handheld/orientation=1
 
 [rendering]
 
